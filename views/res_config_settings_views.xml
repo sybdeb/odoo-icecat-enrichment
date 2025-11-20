@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Add Icecat Configuration to Website Settings -->
+        <record id="res_config_settings_view_form_inherit_icecat" model="ir.ui.view">
+            <field name="name">res.config.settings.view.form.inherit.icecat</field>
+            <field name="model">res.config.settings</field>
+            <field name="inherit_id" ref="website.res_config_settings_view_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//app[@name='website']" position="after">
+                    <div class="app_settings_block" data_key="icecat_product_enrichment" string="Icecat Product Enrichment">
+                        <h2>Icecat Configuration</h2>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_auto_sync_enabled"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_auto_sync_enabled"/>
+                                    <div class="text-muted">
+                                        Enable automatic product synchronization with Icecat
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_catalog_type" string="Catalog Type"/>
+                                    <div class="text-muted">
+                                        Choose between Open (free) or Full (paid) catalog
+                                    </div>
+                                    <div class="content-group">
+                                        <div class="mt16">
+                                            <field name="icecat_catalog_type" class="o_light_label" widget="radio"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h2>API Credentials</h2>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_username"/>
+                                    <div class="text-muted">
+                                        Your Icecat account username
+                                    </div>
+                                    <div class="content-group">
+                                        <div class="mt16">
+                                            <field name="icecat_username" class="oe_inline" placeholder="e.g. NerbysNL"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_password"/>
+                                    <div class="text-muted">
+                                        Your Icecat account password
+                                    </div>
+                                    <div class="content-group">
+                                        <div class="mt16">
+                                            <field name="icecat_password" password="True" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_api_url"/>
+                                    <div class="text-muted">
+                                        Icecat API base URL (usually no need to change)
+                                    </div>
+                                    <div class="content-group">
+                                        <div class="mt16">
+                                            <field name="icecat_api_url" class="oe_inline" placeholder="https://live.icecat.biz/api"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h2>Synchronization Settings</h2>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_sync_description"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_sync_description"/>
+                                    <div class="text-muted">
+                                        Update product descriptions from Icecat
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_sync_images"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_sync_images"/>
+                                    <div class="text-muted">
+                                        Download and set product images from Icecat
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_sync_specifications"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_sync_specifications"/>
+                                    <div class="text-muted">
+                                        Add product specifications as HTML table in description
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_sync_attributes"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_sync_attributes"/>
+                                    <div class="text-muted">
+                                        Create Odoo product attributes from Icecat specifications
+                                    </div>
+                                    <div class="alert alert-warning mt8" role="alert">
+                                        ⚠️ Warning: This can create many attributes! Use only if needed for filtering.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h2>Batch Processing</h2>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_new_product_batch_size"/>
+                                    <div class="text-muted">
+                                        Number of new products to sync per batch (runs hourly during day)
+                                    </div>
+                                    <div class="content-group">
+                                        <div class="mt16">
+                                            <field name="icecat_new_product_batch_size" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_update_batch_size"/>
+                                    <div class="text-muted">
+                                        Number of products to update per batch (runs nightly at 2 AM)
+                                    </div>
+                                    <div class="content-group">
+                                        <div class="mt16">
+                                            <field name="icecat_update_batch_size" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>

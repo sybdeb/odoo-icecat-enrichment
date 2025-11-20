@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Product Template Form View - Add Icecat Tab -->
+        <record id="product_template_form_view_inherit_icecat" model="ir.ui.view">
+            <field name="name">product.template.form.inherit.icecat</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_only_form_view"/>
+            <field name="arch" type="xml">
+                <!-- Add Icecat Sync button in header -->
+                <xpath expr="//header" position="inside">
+                    <button name="action_sync_with_icecat" 
+                            type="object" 
+                            string="Sync with Icecat" 
+                            class="oe_highlight"
+                            invisible="not barcode"
+                            help="Synchronize this product with Icecat database"/>
+                </xpath>
+                
+                <!-- Add Icecat tab -->
+                <xpath expr="//notebook" position="inside">
+                    <page string="Icecat" name="icecat">
+                        <group>
+                            <group string="Sync Status">
+                                <field name="icecat_sync_status" widget="badge" 
+                                       decoration-success="icecat_sync_status == 'synced'"
+                                       decoration-info="icecat_sync_status == 'pending'"
+                                       decoration-danger="icecat_sync_status == 'error'"
+                                       decoration-warning="icecat_sync_status == 'no_data'"
+                                       decoration-muted="icecat_sync_status == 'not_synced'"/>
+                                <field name="icecat_last_sync"/>
+                                <field name="icecat_product_id"/>
+                            </group>
+                            <group string="Icecat Data">
+                                <field name="icecat_brand"/>
+                                <field name="icecat_category"/>
+                                <field name="icecat_quality"/>
+                            </group>
+                        </group>
+                        <group string="Error Information" invisible="icecat_sync_status != 'error'">
+                            <field name="icecat_error_message" nolabel="1"/>
+                        </group>
+                    </page>
+                </xpath>
+                
+                <!-- Make Attributes & Variants tab always visible -->
+                <xpath expr="//page[@name='variants']" position="attributes">
+                    <attribute name="invisible">0</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Product Template Search View - Add Icecat Filters -->
+        <record id="product_template_search_view_inherit_icecat" model="ir.ui.view">
+            <field name="name">product.template.search.inherit.icecat</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_search_view"/>
+            <field name="arch" type="xml">
+                <filter name="inactive" position="after">
+                    <separator/>
+                    <filter string="Not Synced with Icecat" name="not_synced_icecat" 
+                            domain="[('icecat_sync_status', '=', 'not_synced')]"/>
+                    <filter string="Synced with Icecat" name="synced_icecat" 
+                            domain="[('icecat_sync_status', '=', 'synced')]"/>
+                    <filter string="Icecat Sync Errors" name="error_icecat" 
+                            domain="[('icecat_sync_status', '=', 'error')]"/>
+                    <filter string="Pending Icecat Sync" name="pending_icecat" 
+                            domain="[('icecat_sync_status', '=', 'pending')]"/>
+                </filter>
+            </field>
+        </record>
+
+    </data>
+</odoo>

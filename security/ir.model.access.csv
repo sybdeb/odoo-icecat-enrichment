@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_icecat_sync_wizard_user,icecat.sync.wizard user,model_icecat_sync_wizard,base.group_user,1,1,1,1
+access_icecat_sync_wizard_manager,icecat.sync.wizard manager,model_icecat_sync_wizard,base.group_system,1,1,1,1
+access_icecat_sync_log_user,icecat.sync.log user,model_icecat_sync_log,base.group_user,1,0,0,0
+access_icecat_sync_log_manager,icecat.sync.log manager,model_icecat_sync_log,base.group_system,1,1,1,1
+access_icecat_category_mapping_user,icecat.category.mapping user,model_icecat_category_mapping,base.group_user,1,0,0,0
+access_icecat_category_mapping_manager,icecat.category.mapping manager,model_icecat_category_mapping,base.group_system,1,1,1,1
