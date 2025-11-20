@@ -1,0 +1,87 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * icecat_product_enrichment
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-20 14:00:00\n"
+"PO-Revision-Date: 2025-11-20 14:00:00\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: icecat_product_enrichment
+#: model:ir.ui.view,arch_db:icecat_product_enrichment.product_template_form_view_inherit_icecat
+msgid "Sync with Icecat"
+msgstr "Synchroniseer met Icecat"
+
+#. module: icecat_product_enrichment
+#: model:ir.ui.view,arch_db:icecat_product_enrichment.product_template_form_view_inherit_icecat
+msgid "Icecat"
+msgstr "Icecat"
+
+#. module: icecat_product_enrichment
+#: model:ir.ui.view,arch_db:icecat_product_enrichment.product_template_form_view_inherit_icecat
+msgid "Sync Status"
+msgstr "Synchronisatie Status"
+
+#. module: icecat_product_enrichment
+#: model:ir.ui.view,arch_db:icecat_product_enrichment.product_template_form_view_inherit_icecat
+msgid "Icecat Data"
+msgstr "Icecat Gegevens"
+
+#. module: icecat_product_enrichment
+#: model:ir.ui.view,arch_db:icecat_product_enrichment.product_template_form_view_inherit_icecat
+msgid "Error Information"
+msgstr "Foutinformatie"
+
+#. module: icecat_product_enrichment
+#: model:ir.ui.view,arch_db:icecat_product_enrichment.product_template_form_view_inherit_icecat
+msgid "Attributes"
+msgstr "Attributen"
+
+#. module: icecat_product_enrichment
+#: model:ir.model.fields,field_description:icecat_product_enrichment.field_product_template__icecat_sync_status
+msgid "Icecat Sync Status"
+msgstr "Icecat Synchronisatie Status"
+
+#. module: icecat_product_enrichment
+#: model:ir.model.fields,field_description:icecat_product_enrichment.field_product_template__icecat_last_sync
+msgid "Last Icecat Sync"
+msgstr "Laatste Icecat Sync"
+
+#. module: icecat_product_enrichment
+#: model:ir.model.fields,field_description:icecat_product_enrichment.field_product_template__icecat_product_id
+msgid "Icecat Product ID"
+msgstr "Icecat Product ID"
+
+#. module: icecat_product_enrichment
+#: model:ir.model.fields,field_description:icecat_product_enrichment.field_product_template__icecat_brand
+msgid "Icecat Brand"
+msgstr "Icecat Merk"
+
+#. module: icecat_product_enrichment
+#: model:ir.model.fields,field_description:icecat_product_enrichment.field_product_template__icecat_category
+msgid "Icecat Category"
+msgstr "Icecat Categorie"
+
+#. module: icecat_product_enrichment
+#: selection:product.template,icecat_sync_status:0
+msgid "Not Synced"
+msgstr "Niet Gesynchroniseerd"
+
+#. module: icecat_product_enrichment
+#: selection:product.template,icecat_sync_status:0
+msgid "Synced"
+msgstr "Gesynchroniseerd"
+
+#. module: icecat_product_enrichment
+#: selection:product.template,icecat_sync_status:0
+msgid "Error"
+msgstr "Fout"

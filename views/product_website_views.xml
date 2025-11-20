@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Add collapsible specifications to product page -->
+        <template id="product_specifications_collapsible" inherit_id="website_sale.product" name="Icecat Specifications">
+            <xpath expr="//div[@id='product_details']" position="after">
+                <t t-if="product.website_description">
+                    <div class="container mt-4 mb-4">
+                        <h3>Specificaties</h3>
+                        <div class="accordion" id="productSpecifications">
+                            <!-- Parse the HTML table from website_description and make it collapsible -->
+                            <t t-set="description_html" t-value="product.website_description"/>
+                            <t t-if="'&lt;table' in str(description_html)">
+                                <!-- The specifications are in the HTML, render them as-is -->
+                                <t t-raw="description_html"/>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+            </xpath>
+        </template>
+        
+    </data>
+</odoo>

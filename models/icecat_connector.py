@@ -229,63 +229,131 @@ class IcecatConnector(models.AbstractModel):
     @api.model
     def _sync_product_attributes(self, product, specifications):
         """
-        Sync Icecat specifications as Odoo product attributes
-        Creates attributes and values if they don't exist
+        Sync Icecat specifications as Odoo product attributes with eCommerce categories
+        This creates a Tweakers-style specification display
         """
         if not specifications:
             return
+        
+        # Define which feature groups to sync as attributes (only important ones)
+        IMPORTANT_GROUPS = [
+            'Display',
+            'Performance', 
+            'Design',
+            'Multimedia',
+            'Processor',
+            'Memory',
+            'Storage',
+            'Graphics',
+            'Battery',
+            'Connectivity',
+            'Ports & interfaces',
+            'Network',
+            'Power',
+            'Weight & dimensions',
+            'Ergonomics'
+        ]
+        
+        # Define which specific features to skip (too technical or not useful for customers)
+        SKIP_FEATURES = [
+            'Harmonized System (HS) code',
+            'European Product Registry for Energy Labelling (EPREL) code',
+            'Regulatory Approvals',
+            'Certification',
+            'Compliance certificates',
+            'Mean time between failures (MTBF)',
+            'Delta E',
+            'Pixel pitch',
+            'Digital horizontal frequency',
+            'Digital vertical frequency',
+            'Horizontal scan range',
+            'Vertical scan range',
+            'Haze rate',
+            'Surface hardness',
+            'Windows operating systems supported',
+            'Mac operating systems supported',
+            'On Screen Display (OSD) languages'
+        ]
         
         attribute_obj = self.env['product.attribute']
         value_obj = self.env['product.attribute.value']
         template_attr_obj = self.env['product.template.attribute.line']
         
-        # Group specs by attribute name to avoid duplicates
-        spec_dict = {}
+        # Group specifications by category and filter
+        specs_by_group = {}
         for spec in specifications:
-            attr_name = f"{spec['group']} - {spec['name']}" if spec['group'] else spec['name']
-            spec_dict[attr_name] = spec['value']
+            # Skip if not in important groups
+            if spec['group'] not in IMPORTANT_GROUPS:
+                continue
+            
+            # Skip blacklisted features
+            if spec['name'] in SKIP_FEATURES:
+                continue
+            
+            # Skip very long values (usually lists of OS versions etc)
+            if len(str(spec['value'])) > 100:
+                continue
+            
+            if spec['group'] not in specs_by_group:
+                specs_by_group[spec['group']] = []
+            
+            specs_by_group[spec['group']].append({
+                'name': spec['name'],
+                'value': spec['value']
+            })
         
-        for attr_name, attr_value in spec_dict.items():
-            # Find or create the attribute
-            attribute = attribute_obj.search([('name', '=', attr_name)], limit=1)
-            if not attribute:
-                attribute = attribute_obj.create({
-                    'name': attr_name,
-                    'create_variant': 'no_variant',  # Don't create variants
-                    'display_type': 'select',
-                })
-            
-            # Find or create the attribute value
-            value = value_obj.search([
-                ('attribute_id', '=', attribute.id),
-                ('name', '=', str(attr_value))
-            ], limit=1)
-            
-            if not value:
-                value = value_obj.create({
-                    'attribute_id': attribute.id,
-                    'name': str(attr_value),
-                })
-            
-            # Check if this attribute line already exists on the product
-            existing_line = template_attr_obj.search([
-                ('product_tmpl_id', '=', product.id),
-                ('attribute_id', '=', attribute.id)
-            ], limit=1)
-            
-            if existing_line:
-                # Update existing line with new value
-                if value.id not in existing_line.value_ids.ids:
-                    existing_line.write({
+        # Process each group
+        for group_name, specs in specs_by_group.items():
+            # Create attributes for each spec in this group
+            for spec in specs:
+                # Use group prefix for clarity since Community has no categories
+                attr_name = f"{group_name}: {spec['name']}"
+                attr_value = spec['value']
+                
+                # Find or create the attribute
+                attribute = attribute_obj.search([
+                    ('name', '=', attr_name)
+                ], limit=1)
+                
+                if not attribute:
+                    attribute = attribute_obj.create({
+                        'name': attr_name,
+                        'create_variant': 'no_variant',  # Don't create variants
+                        'display_type': 'select',
+                    })
+                
+                # Find or create the attribute value
+                value = value_obj.search([
+                    ('attribute_id', '=', attribute.id),
+                    ('name', '=', str(attr_value))
+                ], limit=1)
+                
+                if not value:
+                    value = value_obj.create({
+                        'attribute_id': attribute.id,
+                        'name': str(attr_value),
+                    })
+                
+                # Check if this attribute line already exists on the product
+                existing_line = template_attr_obj.search([
+                    ('product_tmpl_id', '=', product.id),
+                    ('attribute_id', '=', attribute.id)
+                ], limit=1)
+                
+                if existing_line:
+                    # Update existing line with new value
+                    if value.id not in existing_line.value_ids.ids:
+                        existing_line.write({
+                            'value_ids': [(4, value.id)]
+                        })
+                else:
+                    # Create new attribute line
+                    template_attr_obj.create({
+                        'product_tmpl_id': product.id,
+                        'attribute_id': attribute.id,
                         'value_ids': [(4, value.id)]
                     })
-            else:
-                # Create new attribute line
-                template_attr_obj.create({
-                    'product_tmpl_id': product.id,
-                    'attribute_id': attribute.id,
-                    'value_ids': [(4, value.id)]
-                })
+
 
     @api.model
     def sync_product(self, product, barcode=None):
@@ -363,23 +431,57 @@ class IcecatConnector(models.AbstractModel):
             # Add specifications if configured
             if self._get_config_param('sync_specifications', 'True') == 'True':
                 if product_info.get('specifications'):
-                    specs_html = '<h3>Specifications</h3><table class="table table-sm">'
-                    current_group = None
-                    
+                    # Group specifications by category
+                    specs_by_group = {}
                     for spec in product_info['specifications']:
-                        if spec['group'] != current_group:
-                            if current_group:
-                                specs_html += '</tbody>'
-                            specs_html += f'<thead><tr><th colspan="2">{spec["group"]}</th></tr></thead><tbody>'
-                            current_group = spec['group']
-                        
-                        specs_html += f'<tr><td>{spec["name"]}</td><td>{spec["value"]}</td></tr>'
+                        group = spec['group'] or 'General'
+                        if group not in specs_by_group:
+                            specs_by_group[group] = []
+                        specs_by_group[group].append(spec)
                     
-                    specs_html += '</tbody></table>'
+                    # Create collapsible accordion HTML
+                    specs_html = '<div class="accordion mt-4" id="productSpecifications">'
+                    
+                    for idx, (group_name, specs) in enumerate(specs_by_group.items()):
+                        collapse_id = f"collapse{idx}"
+                        is_first = idx == 0
+                        show_class = "show" if is_first else ""
+                        collapsed_class = "" if is_first else "collapsed"
+                        
+                        specs_html += f'''
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading{idx}">
+                                <button class="accordion-button {collapsed_class}" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#{collapse_id}" aria-expanded="{str(is_first).lower()}" aria-controls="{collapse_id}">
+                                    {group_name}
+                                </button>
+                            </h2>
+                            <div id="{collapse_id}" class="accordion-collapse collapse {show_class}" 
+                                 aria-labelledby="heading{idx}" data-bs-parent="#productSpecifications">
+                                <div class="accordion-body p-0">
+                                    <table class="table table-sm table-striped mb-0">
+                                        <tbody>
+                        '''
+                        
+                        for spec in specs:
+                            specs_html += f'<tr><td class="w-50">{spec["name"]}</td><td>{spec["value"]}</td></tr>'
+                        
+                        specs_html += '''
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        '''
+                    
+                    specs_html += '</div>'
                     description_parts.append(specs_html)
             
             if description_parts:
-                update_vals['description_sale'] = '\n\n'.join(description_parts)
+                combined_description = '\n\n'.join(description_parts)
+                update_vals['description_sale'] = combined_description
+                # Also set website description so it shows on product page
+                update_vals['website_description'] = combined_description
         
         # Update images if configured
         if self._get_config_param('sync_images', 'True') == 'True':
