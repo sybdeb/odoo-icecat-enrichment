@@ -41,6 +41,7 @@ Batch Processing:
         'views/icecat_sync_log_views.xml',
         'views/icecat_category_mapping_views.xml',
         'views/product_website_views.xml',
+        'views/website_product_specifications.xml',
         'wizards/icecat_sync_wizard_views.xml',
     ],
     'external_dependencies': {

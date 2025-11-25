@@ -233,8 +233,9 @@ class IcecatConnector(models.AbstractModel):
     @api.model
     def _sync_product_attributes(self, product, specifications):
         """
-        Sync ALL Icecat specifications as Odoo product attributes
-        Each spec becomes a filterable attribute on the website
+        Sync Icecat specifications to Odoo's standard product.attribute system
+        Groups specs by category with [Icecat] prefix for automatic backend grouping
+        100% compatible with eCommerce filters, variants, and search
         """
         if not specifications:
             return
@@ -245,55 +246,72 @@ class IcecatConnector(models.AbstractModel):
         
         _logger.info(f"Syncing {len(specifications)} specifications as attributes for product {product.name}")
         
-        # Remove existing attribute lines to avoid duplicates
-        existing_lines = template_attr_obj.search([('product_tmpl_id', '=', product.id)])
-        if existing_lines:
-            existing_lines.unlink()
+        # Remove only Icecat-managed attributes (preserve manual ones)
+        icecat_lines = product.attribute_line_ids.filtered(
+            lambda l: l.attribute_id.name.startswith('[Icecat]')
+        )
+        if icecat_lines:
+            icecat_lines.unlink()
         
-        # Process ALL specifications
+        # Group specifications by category for cleaner attribute structure
+        grouped_specs = {}
         for spec in specifications:
-            group_name = spec.get('group') or 'General'
-            spec_name = spec.get('name')
-            spec_value = str(spec.get('value', ''))
+            group = spec.get('group') or 'Algemeen'
+            if group not in grouped_specs:
+                grouped_specs[group] = []
+            grouped_specs[group].append(spec)
+        
+        # Create attributes per group (enables automatic backend grouping)
+        for group_name, specs in grouped_specs.items():
+            # Attribute name: [Icecat] Group → auto-groups in backend
+            attr_name = f"[Icecat] {group_name}"
             
-            # Skip if no name or value
-            if not spec_name or not spec_value:
-                continue
-            
-            # Create attribute name with group prefix for clarity
-            attr_name = f"{group_name}: {spec_name}"
-            attr_value = spec_value
-            
-            # Find or create the attribute
-            attribute = attribute_obj.search([
-                ('name', '=', attr_name)
-            ], limit=1)
-            
+            # Find or create the group attribute
+            attribute = attribute_obj.search([('name', '=', attr_name)], limit=1)
             if not attribute:
                 attribute = attribute_obj.create({
                     'name': attr_name,
-                    'create_variant': 'no_variant',  # Don't create variants
                     'display_type': 'select',
+                    'create_variant': 'no_variant',  # Don't create product variants
                 })
             
-            # Find or create the attribute value
-            value = value_obj.search([
-                ('attribute_id', '=', attribute.id),
-                ('name', '=', str(attr_value))
-            ], limit=1)
+            # Collect all values for this group
+            values_to_create = []
+            for spec in specs:
+                spec_name = spec.get('name')
+                spec_value = str(spec.get('value', ''))
+                
+                if not spec_name or not spec_value:
+                    continue
+                
+                # Value format: "Spec Name: Value"
+                value_name = f"{spec_name}: {spec_value}"
+                
+                # Find or create the attribute value
+                value = value_obj.search([
+                    ('attribute_id', '=', attribute.id),
+                    ('name', '=', value_name)
+                ], limit=1)
+                
+                if not value:
+                    value = value_obj.create({
+                        'attribute_id': attribute.id,
+                        'name': value_name,
+                    })
+                
+                values_to_create.append(value.id)
             
-            if not value:
-                value = value_obj.create({
-                    'attribute_id': attribute.id,
-                    'name': str(attr_value),
-                })
-            
-            # Create new attribute line on product
-            template_attr_obj.create({
-                'product_tmpl_id': product.id,
-                'attribute_id': attribute.id,
-                'value_ids': [(6, 0, [value.id])]
-            })
+            # Create attribute line with all values for this group
+            if values_to_create:
+                existing_line = product.attribute_line_ids.filtered(
+                    lambda l: l.attribute_id.id == attribute.id
+                )
+                if not existing_line:
+                    template_attr_obj.create({
+                        'product_tmpl_id': product.id,
+                        'attribute_id': attribute.id,
+                        'value_ids': [(6, 0, values_to_create)]
+                    })
 
 
     @api.model
@@ -380,13 +398,12 @@ class IcecatConnector(models.AbstractModel):
         # Write updates to product
         product.write(update_vals)
         
+        # Always store raw specifications for grouped display
+        if product_info.get('specifications'):
+            product.write({'icecat_specifications_raw': product_info['specifications']})
+        
         # Sync specifications as product attributes if configured
         if self._get_config_param('sync_attributes', 'True') == 'True':
-            if product_info.get('specifications'):
-                self._sync_product_attributes(product, product_info['specifications'])
-        
-        # Sync product attributes/specifications if configured
-        if self._get_config_param('sync_attributes', 'False') == 'True':
             if product_info.get('specifications'):
                 self._sync_product_attributes(product, product_info['specifications'])
         

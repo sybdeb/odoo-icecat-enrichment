@@ -1,50 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Display product attributes as collapsible accordion on product page -->
-        <template id="product_attributes_accordion" inherit_id="website_sale.product" name="Product Attributes Accordion">
-            <xpath expr="//div[@id='product_details']" position="after">
-                <t t-if="attribute_groups">
-                    <div class="container mt-4 mb-4">
-                        <h3>Specificaties</h3>
-                        <div class="accordion" id="productSpecifications">
-                            <t t-foreach="attribute_groups" t-as="group_data">
-                                <t t-set="group_name" t-value="group_data[0]"/>
-                                <t t-set="specs" t-value="group_data[1]"/>
-                                <div class="accordion-item">
-                                    <h2 class="accordion-header" t-attf-id="heading{{group_data_index}}">
-                                        <button t-attf-class="accordion-button{{'' if group_data_index == 0 else ' collapsed'}}" 
-                                                type="button" data-bs-toggle="collapse" 
-                                                t-attf-data-bs-target="#collapse{{group_data_index}}" 
-                                                t-attf-aria-expanded="{{' true' if group_data_index == 0 else 'false'}}"
-                                                t-attf-aria-controls="collapse{{group_data_index}}">
-                                            <t t-esc="group_name"/>
-                                        </button>
-                                    </h2>
-                                    <div t-attf-id="collapse{{group_data_index}}" 
-                                         t-attf-class="accordion-collapse collapse{{' show' if group_data_index == 0 else ''}}"
-                                         t-attf-aria-labelledby="heading{{group_data_index}}" 
-                                         data-bs-parent="#productSpecifications">
-                                        <div class="accordion-body p-0">
-                                            <table class="table table-sm table-striped mb-0">
-                                                <tbody>
-                                                    <t t-foreach="specs" t-as="spec">
-                                                        <tr>
-                                                            <td class="w-50" t-esc="spec[0]"/>
-                                                            <td t-esc="spec[1]"/>
-                                                        </tr>
-                                                    </t>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </t>
-                        </div>
-                    </div>
-                </t>
+        
+        <!-- Clean [Icecat] prefix from accordion titles -->
+        <template id="clean_icecat_accordion" 
+                  inherit_id="website_sale_comparison.accordion_specs_item" 
+                  name="Clean Icecat Accordion Display"
+                  priority="20">
+            <xpath expr="//div[@class='accordion-header my-0 h6']/button" position="replace">
+                <button 
+                    class="accordion-button collapsed fw-medium" 
+                    type="button" 
+                    data-bs-toggle="collapse" 
+                    t-attf-data-bs-target="#category_accordion_{{category_index}}" 
+                    aria-expanded="false" 
+                    aria-controls="specifications">
+                    <!-- Strip [Icecat] prefix from category names - safe string handling -->
+                    <t t-set="cat_name" t-value="str(category.name or '')"/>
+                    <t t-if="cat_name.startswith('[Icecat] ')">
+                        <t t-out="cat_name[9:]"/>
+                    </t>
+                    <t t-elif="cat_name.startswith('[ICECAT] ')">
+                        <t t-out="cat_name[9:]"/>
+                    </t>
+                    <t t-else="">
+                        <t t-out="cat_name if cat_name else category.name"/>
+                    </t>
+                    <!-- Keep original Specifications/Others text below name -->
+                    <t t-if="category_size == 1">
+                        <br/><small class="text-muted">Specifications</small>
+                    </t>
+                    <t t-else="">
+                        <br/><small class="text-muted">Others</small>
+                    </t>
+                </button>
             </xpath>
         </template>
-        
+
     </data>
 </odoo>

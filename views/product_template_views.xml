@@ -44,10 +44,36 @@
                     </page>
                 </xpath>
                 
+                <!-- Voeg Specificaties-tab toe aan product form -->
+                <xpath expr="//page[@name='icecat']" position="after">
+                    <page string="Specificaties" name="specifications">
+                        <div class="o_specifications_tab">
+                            <field name="icecat_specifications_grouped" nolabel="1" readonly="1"/>
+                        </div>
+                    </page>
+                </xpath>
+                
                 <!-- Make Attributes & Variants tab always visible -->
                 <xpath expr="//page[@name='variants']" position="attributes">
                     <attribute name="invisible">0</attribute>
                 </xpath>
+                
+                <!-- Customize attribute display with custom tree view -->
+                <xpath expr="//field[@name='attribute_line_ids']" position="attributes">
+                    <attribute name="context">{'tree_view_ref': 'icecat_product_enrichment.product_template_attribute_line_tree_grouped'}</attribute>
+                </xpath>
+            </field>
+        </record>
+        
+        <!-- Custom list view for attribute lines with better display -->
+        <record id="product_template_attribute_line_tree_grouped" model="ir.ui.view">
+            <field name="name">product.template.attribute.line.tree.grouped</field>
+            <field name="model">product.template.attribute.line</field>
+            <field name="arch" type="xml">
+                <list string="Product Attributes" editable="bottom">
+                    <field name="attribute_id" string="Kenmerk" readonly="1"/>
+                    <field name="value_ids" widget="many2many_tags" string="Waarde" readonly="1"/>
+                </list>
             </field>
         </record>
 

@@ -9,7 +9,7 @@
             <field name="inherit_id" ref="website.res_config_settings_view_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//app[@name='website']" position="after">
-                    <div class="app_settings_block" data_key="icecat_product_enrichment" string="Icecat Product Enrichment">
+                    <div class="app_settings_block" data-key="icecat_product_enrichment" data-string="Icecat Product Enrichment" groups="base.group_system">
                         <h2>Icecat Configuration</h2>
                         <div class="row mt16 o_settings_container">
                             <div class="col-12 col-lg-6 o_setting_box">

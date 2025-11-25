@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from collections import defaultdict
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
@@ -49,6 +50,57 @@ class ProductTemplate(models.Model):
         readonly=True,
         help='Data quality indicator from Icecat'
     )
+
+    icecat_specifications_raw = fields.Json(
+        string='Icecat Specifications Raw',
+        help='Raw specifications data from Icecat, stored as JSON'
+    )
+
+    icecat_specifications_grouped = fields.Html(
+        string='Gegroepeerde Specificaties',
+        compute='_compute_icecat_specifications_grouped',
+        help='Specificaties gegroepeerd per categorie, Tweakers-stijl'
+    )
+
+    @api.depends('icecat_specifications_raw')
+    def _compute_icecat_specifications_grouped(self):
+        """Genereer HTML-tabel per Icecat-categorie, zoals op Tweakers"""
+        for product in self:
+            specs_html = ''
+            grouped_specs = defaultdict(list)
+            
+            # Gebruik raw specifications data in plaats van attributes
+            if product.icecat_specifications_raw:
+                for spec in product.icecat_specifications_raw:
+                    group = spec.get('group', 'Algemeen')
+                    grouped_specs[group].append({
+                        'name': spec.get('name', ''),
+                        'value': spec.get('value', ''),
+                        'unit': spec.get('unit', '')
+                    })
+            
+            # Bouw HTML: secties met tabel, zoals Tweakers
+            for group, specs in grouped_specs.items():
+                specs_html += f'''
+                    <div class="specs-section">
+                        <h4 class="specs-group-title">{group}</h4>
+                        <table class="table table-sm table-striped specs-table">
+                            <tbody>
+                '''
+                for spec in specs:
+                    specs_html += f'''
+                                <tr>
+                                    <td class="spec-key"><strong>{spec['name']}</strong></td>
+                                    <td class="spec-value">{spec['value']} {spec['unit']}</td>
+                                </tr>
+                    '''
+                specs_html += '''
+                            </tbody>
+                        </table>
+                    </div>
+                '''
+            
+            product.icecat_specifications_grouped = specs_html if specs_html else '<p>Geen specificaties beschikbaar.</p>'
 
     def action_sync_with_icecat(self):
         """Manual sync action for selected products"""
