@@ -455,7 +455,7 @@ class IcecatConnector(models.AbstractModel):
             product.write({'icecat_specifications_raw': product_info['specifications']})
         
         # Sync specifications as product attributes if configured
-        if self._get_config_param('sync_attributes', 'True') == 'True':
+        if self._get_config_param('sync_attributes', 'False') == 'True':
             if product_info.get('specifications'):
                 self._sync_product_attributes(product, product_info['specifications'])
         
