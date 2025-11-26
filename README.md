@@ -20,6 +20,7 @@ Automatisch producten verrijken met Icecat data op basis van EAN/GTIN codes.
 - Product afbeeldingen
 - Technische specificaties
 - Merk en categorie informatie
+- Automatische Google Shopping categorieën
 
 ✅ **Status tracking**
 - Per product sync status bekijken
@@ -86,6 +87,36 @@ In de product lijst zijn handige filters beschikbaar:
 - **Synced with Icecat**: Succesvol gesynchroniseerde producten
 - **Icecat Sync Errors**: Producten waarbij de sync fout ging
 - **Pending Icecat Sync**: Producten in de wachtrij
+
+### Category Mapping
+
+De module ondersteunt automatische categorie mapping van Icecat naar Odoo categorieën:
+
+**Automatische Google Category Mapping:**
+1. Ga naar **Products > Icecat > Category Mappings**
+2. Maak een nieuwe mapping aan voor een Icecat categorie
+3. Kies **alleen** een Google Shopping Category
+4. Sla op en klik op "Apply to Products"
+5. De module maakt automatisch:
+   - Website categorie hiërarchie (bijv. "Electronics > Computers > Monitors")
+   - Interne categorie hiërarchie met dezelfde structuur
+   - Past de mapping toe op alle producten met die Icecat categorie
+
+**Handmatige categorie mapping:**
+- Je kunt ook handmatig website en interne categorieën kiezen
+- Deze worden dan gebruikt in plaats van de automatische hiërarchie
+- Configureer of producten automatisch gepubliceerd moeten worden
+
+**Voorbeeld workflow:**
+```
+Icecat Category: "Computer Monitors"
+Google Category: "Electronics > Computers & Accessories > Computer Monitors"
+
+→ Automatisch aangemaakt:
+  - Website categorie: Electronics > Computers & Accessories > Computer Monitors
+  - Interne categorie: Electronics > Computers & Accessories > Computer Monitors
+  - Alle producten met "Computer Monitors" krijgen deze categorieën
+```
 
 ## Icecat Account Informatie
 
