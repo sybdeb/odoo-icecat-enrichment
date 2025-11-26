@@ -23,11 +23,6 @@ class ProductTemplate(models.Model):
         readonly=True,
         help='Last time this product was synced with Icecat'
     )
-    icecat_product_id = fields.Char(
-        string='Icecat Product ID',
-        readonly=True,
-        help='Icecat internal product identifier'
-    )
     icecat_error_message = fields.Text(
         string='Icecat Error Message',
         readonly=True,
@@ -42,13 +37,6 @@ class ProductTemplate(models.Model):
         string='Icecat Category',
         readonly=True,
         help='Category from Icecat'
-    )
-    icecat_quality = fields.Selection([
-        ('ICECAT', 'ICECAT'),
-        ('SUPPLIED', 'SUPPLIED'),
-    ], string='Icecat Quality',
-        readonly=True,
-        help='Data quality indicator from Icecat'
     )
 
     icecat_specifications_raw = fields.Json(

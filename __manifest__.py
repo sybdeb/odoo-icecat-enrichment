@@ -35,12 +35,10 @@ Batch Processing:
     'data': [
         'security/ir.model.access.csv',
         'data/ir_cron_data.xml',
-        'data/product_variant_access.xml',
         'views/res_config_settings_views.xml',
         'views/product_template_views.xml',
         'views/icecat_sync_log_views.xml',
         'views/icecat_category_mapping_views.xml',
-        'views/product_website_views.xml',
         'views/website_product_specifications.xml',
         'wizards/icecat_sync_wizard_views.xml',
     ],

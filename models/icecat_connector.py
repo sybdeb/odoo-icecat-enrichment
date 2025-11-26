@@ -24,6 +24,20 @@ class IcecatConnector(models.AbstractModel):
         )
 
     @api.model
+    def _cfg_bool(self, key, default=False):
+        """Veilige boolean uit ir.config_parameter"""
+        val = self._get_config_param(key)
+        return str(val).lower() in ('true', '1', 'yes', 'on')
+
+    @api.model
+    def _cfg_int(self, key, default=0):
+        val = self._get_config_param(key)
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return default
+
+    @api.model
     def _get_api_credentials(self):
         """Get Icecat API credentials from settings"""
         username = self._get_config_param('username')
@@ -50,6 +64,9 @@ class IcecatConnector(models.AbstractModel):
         """
         username, password = self._get_api_credentials()
         api_url = self._get_api_url()
+        
+        # Ensure EAN code is a string
+        ean_code = str(ean_code or '').strip()
         
         # Log the barcode we received
         _logger.info(f"Received EAN code: '{ean_code}' (type: {type(ean_code).__name__})")
@@ -220,14 +237,16 @@ class IcecatConnector(models.AbstractModel):
     def _download_image(self, image_url):
         """Download image from URL and return base64 encoded data"""
         try:
-            response = requests.get(image_url, timeout=30)
-            if response.status_code == 200:
-                return base64.b64encode(response.content)
-            else:
-                _logger.warning(f"Failed to download image: {image_url}")
-                return None
+            response = requests.get(
+                image_url,
+                stream=True,
+                timeout=15,
+                headers={'User-Agent': 'Odoo/18.0 Icecat-Module'},
+            )
+            response.raise_for_status()
+            return base64.b64encode(response.content)
         except Exception as e:
-            _logger.error(f"Error downloading image {image_url}: {e}")
+            _logger.warning("Image download mislukt %s: %s", image_url, e)
             return None
 
     @api.model
@@ -366,10 +385,8 @@ class IcecatConnector(models.AbstractModel):
         update_vals = {
             'icecat_sync_status': 'synced',
             'icecat_last_sync': fields.Datetime.now(),
-            'icecat_product_id': product_info.get('product_id'),
             'icecat_brand': product_info.get('brand'),
             'icecat_category': product_info.get('category'),
-            'icecat_quality': product_info.get('quality'),
             'icecat_error_message': False,
         }
         
@@ -378,7 +395,13 @@ class IcecatConnector(models.AbstractModel):
             if product_info.get('title'):
                 update_vals['name'] = product_info['title']
         
-        # Update description if configured (plain text only, specs are in attributes)
+        # Always update description_ecommerce for website display
+        if product_info.get('description_long'):
+            update_vals['description_ecommerce'] = product_info['description_long']
+        elif product_info.get('description_short'):
+            update_vals['description_ecommerce'] = product_info['description_short']
+        
+        # Update description_sale if configured
         if self._get_config_param('sync_description', 'True') == 'True':
             if product_info.get('description_long'):
                 update_vals['description_sale'] = product_info['description_long']
@@ -387,13 +410,42 @@ class IcecatConnector(models.AbstractModel):
         
         # Update images if configured
         if self._get_config_param('sync_images', 'True') == 'True':
-            if product_info.get('images') and len(product_info['images']) > 0:
-                # Get the first/main image
-                main_image = product_info['images'][0]
-                image_data = self._download_image(main_image['url'])
-                
-                if image_data:
-                    update_vals['image_1920'] = image_data
+            if product_info.get('images'):
+                # Eerst bestaande Icecat-afbeeldingen ophalen (op basis van icecat_url)
+                existing_images = self.env['product.image'].search([
+                    ('product_tmpl_id', '=', product.id),
+                    ('icecat_url', '!=', False)
+                ])
+                existing_urls = {img.icecat_url: img for img in existing_images}
+
+                image_count = 0
+                for idx, image_info in enumerate(product_info['images']):
+                    url = image_info.get('url') or image_info.get('pic')
+                    if not url:
+                        continue
+
+                    image_data = self._download_image(url)
+                    if not image_data:
+                        continue
+
+                    if idx == 0:
+                        # Hoofdafbeelding altijd overschrijven
+                        update_vals['image_1920'] = image_data
+                        image_count += 1
+                    else:
+                        # Extra afbeeldingen: alleen toevoegen als nog niet bestaat
+                        if url not in existing_urls:
+                            self.env['product.image'].create({
+                                'product_tmpl_id': product.id,
+                                'image_1920': image_data,
+                                'name': image_info.get('title', f"Icecat Image {idx + 1}"),
+                                'icecat_url': url,
+                                'sequence': idx,
+                            })
+                            image_count += 1
+                        else:
+                            # Optioneel: sequence updaten als de volgorde anders is
+                            existing_urls[url].write({'sequence': idx})
         
         # Write updates to product
         product.write(update_vals)

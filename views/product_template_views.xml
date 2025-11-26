@@ -30,12 +30,10 @@
                                        decoration-warning="icecat_sync_status == 'no_data'"
                                        decoration-muted="icecat_sync_status == 'not_synced'"/>
                                 <field name="icecat_last_sync"/>
-                                <field name="icecat_product_id"/>
                             </group>
                             <group string="Icecat Data">
                                 <field name="icecat_brand"/>
                                 <field name="icecat_category"/>
-                                <field name="icecat_quality"/>
                             </group>
                         </group>
                         <group string="Error Information" invisible="icecat_sync_status != 'error'">

@@ -65,7 +65,7 @@ class IcecatCategoryMapping(models.Model):
             # Create a basic mapping
             mapping = self.create({
                 'icecat_category': icecat_category,
-                'auto_publish': False,  # Don't auto-publish until configured
+                'auto_publish': True,  # Auto-publish by default
             })
         
         return mapping
