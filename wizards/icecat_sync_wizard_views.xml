@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Icecat Sync Wizard Form -->
+        <record id="icecat_sync_wizard_form" model="ir.ui.view">
+            <field name="name">icecat.sync.wizard.form</field>
+            <field name="model">icecat.sync.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Sync Products with Icecat">
+                    <group>
+                        <group>
+                            <field name="sync_type"/>
+                            <field name="batch_size"/>
+                        </group>
+                        <group>
+                            <field name="product_count"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="alert">
+                        <p><strong>Note:</strong> This will synchronize products with the Icecat database based on their EAN/GTIN barcode.</p>
+                        <ul>
+                            <li>Products without a barcode will be skipped</li>
+                            <li>Batch size determines how many products to process in this run</li>
+                            <li>Large batches may take several minutes to complete</li>
+                        </ul>
+                    </div>
+                    <footer>
+                        <button name="action_sync_products" type="object" string="Start Sync" class="btn-primary"/>
+                        <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!-- Wizard Action -->
+        <record id="action_icecat_sync_wizard" model="ir.actions.act_window">
+            <field name="name">Sync with Icecat</field>
+            <field name="res_model">icecat.sync.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+            <field name="binding_model_id" ref="product.model_product_template"/>
+            <field name="binding_view_types">list</field>
+        </record>
+
+    </data>
+</odoo>

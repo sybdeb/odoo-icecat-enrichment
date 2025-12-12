@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Add collapsible specifications to product page -->
+        <template id="product_specifications_collapsible" inherit_id="website_sale.product" name="Icecat Specifications">
+            <xpath expr="//div[@id='product_details']" position="after">
+                <t t-if="product.website_description or product.icecat_highlights_html">
+                    <div id="icecat-specs" class="container mt-4 mb-4">
+                        <t t-if="product.icecat_highlights_html">
+                            <t t-raw="product.icecat_highlights_html"/>
+                        </t>
+
+                        <t t-if="product.website_description">
+                            <div class="d-flex align-items-center justify-content-between mt-4">
+                                <h3 class="mb-0">Specificaties</h3>
+                                <input id="specSearchInput" class="form-control ms-3" style="max-width: 320px;" type="search" placeholder="Zoek in specificaties…" aria-label="Zoek in specificaties"/>
+                            </div>
+                            <div class="mt-3">
+                                <t t-raw="product.website_description"/>
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- Lightweight client-side filter for spec tables -->
+                    <script>
+                        (function () {
+                            function normalize(t) { return (t || '').toString().toLowerCase(); }
+                            function filterSpecs(q) {
+                                var query = normalize(q);
+                                var container = document.getElementById('icecat-specs');
+                                if (!container) return;
+                                var accordions = container.querySelectorAll('.accordion');
+                                accordions.forEach(function(acc) {
+                                    var items = acc.querySelectorAll('.accordion-item');
+                                    items.forEach(function(item) {
+                                        var rows = item.querySelectorAll('tbody tr');
+                                        var anyMatch = false;
+                                        rows.forEach(function(row) {
+                                            var txt = normalize(row.textContent);
+                                            var match = !query || txt.indexOf(query) !== -1;
+                                            row.style.display = match ? '' : 'none';
+                                            anyMatch = anyMatch || match;
+                                        });
+                                        var collapse = item.querySelector('.accordion-collapse');
+                                        var btn = item.querySelector('.accordion-button');
+                                        if (collapse && btn) {
+                                            if (anyMatch && !collapse.classList.contains('show')) {
+                                                collapse.classList.add('show');
+                                                btn.classList.remove('collapsed');
+                                            } else if (!anyMatch && collapse.classList.contains('show') && query) {
+                                                collapse.classList.remove('show');
+                                                btn.classList.add('collapsed');
+                                            }
+                                        }
+                                        item.style.display = anyMatch || !query ? '' : 'none';
+                                    });
+                                });
+                            }
+                            document.addEventListener('DOMContentLoaded', function() {
+                                var input = document.getElementById('specSearchInput');
+                                if (!input) return;
+                                input.addEventListener('input', function(e) { filterSpecs(e.target.value); });
+                            });
+                        })();
+                    </script>
+                </t>
+            </xpath>
+        </template>
+
+    </data>
+</odoo>

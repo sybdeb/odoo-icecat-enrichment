@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Icecat Category Mapping Tree View -->
+        <record id="icecat_category_mapping_tree_view" model="ir.ui.view">
+            <field name="name">icecat.category.mapping.tree</field>
+            <field name="model">icecat.category.mapping</field>
+            <field name="arch" type="xml">
+                <list string="Icecat Category Mappings" editable="bottom">
+                    <field name="icecat_category"/>
+                    <field name="product_count"/>
+                    <field name="internal_category_id"/>
+                    <field name="odoo_category_id"/>
+                    <field name="auto_publish" widget="boolean_toggle"/>
+                    <button name="action_apply_to_products" 
+                            type="object" 
+                            string="Apply to Products" 
+                            class="btn-primary"
+                            icon="fa-refresh"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Icecat Category Mapping Form View -->
+        <record id="icecat_category_mapping_form_view" model="ir.ui.view">
+            <field name="name">icecat.category.mapping.form</field>
+            <field name="model">icecat.category.mapping</field>
+            <field name="arch" type="xml">
+                <form string="Icecat Category Mapping">
+                    <header>
+                        <button name="action_apply_to_products" 
+                                type="object" 
+                                string="Apply to All Products" 
+                                class="btn-primary"
+                                icon="fa-refresh"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button class="oe_stat_button" type="object" name="action_apply_to_products" icon="fa-cubes">
+                                <field name="product_count" widget="statinfo" string="Products"/>
+                            </button>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="icecat_category"/>
+                                <field name="auto_publish"/>
+                            </group>
+                            <group>
+                                <field name="internal_category_id"/>
+                                <field name="odoo_category_id"/>
+                            </group>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Icecat Category Mapping Action -->
+        <record id="action_icecat_category_mapping" model="ir.actions.act_window">
+            <field name="name">Category Mappings</field>
+            <field name="res_model">icecat.category.mapping</field>
+            <field name="view_mode">list,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No category mappings yet
+                </p>
+                <p>
+                    Category mappings will be created automatically when products are synced.
+                    Configure them here to control where products appear on your website.
+                </p>
+            </field>
+        </record>
+
+        <!-- Menu Item -->
+        <menuitem id="menu_icecat_category_mapping"
+                  name="Category Mappings"
+                  parent="menu_icecat_root"
+                  action="action_icecat_category_mapping"
+                  sequence="20"/>
+
+    </data>
+</odoo>
