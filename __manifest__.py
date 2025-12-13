@@ -30,7 +30,6 @@ Batch Processing:
         'base',
         'product',
         'website_sale',
-        'product_google_category',
     ],
     'data': [
         'security/ir.model.access.csv',
@@ -41,6 +40,7 @@ Batch Processing:
         'views/icecat_category_mapping_views.xml',
         'views/product_website_views.xml',
         'wizards/icecat_sync_wizard_views.xml',
+        'wizards/spec_manager_wizard_views.xml',
     ],
     'external_dependencies': {
         'python': ['requests'],
