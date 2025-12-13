@@ -109,16 +109,27 @@ class ProductTemplate(models.Model):
         if not products:
             return
         
-        # Create log entry
-        log = self.env['icecat.sync.log'].create({
-            'sync_type': 'new',
-            'total_products': len(products),
-            'status': 'running',
-        })
+        # Check if there's already a running log for this sync type
+        log = self.env['icecat.sync.log'].search([
+            ('sync_type', '=', 'new'),
+            ('status', '=', 'running'),
+        ], limit=1)
         
-        synced_count = 0
-        error_count = 0
-        no_data_count = 0
+        # If no running log exists, create a new one
+        if not log:
+            log = self.env['icecat.sync.log'].create({
+                'sync_type': 'new',
+                'total_products': len(products),
+                'status': 'running',
+                'synced_count': 0,
+                'error_count': 0,
+                'no_data_count': 0,
+            })
+            self.env.cr.commit()
+        
+        synced_count = log.synced_count
+        error_count = log.error_count
+        no_data_count = log.no_data_count
         
         try:
             for product in products:
@@ -141,21 +152,28 @@ class ProductTemplate(models.Model):
                         'icecat_sync_status': 'error',
                         'icecat_error_message': str(e),
                     })
+                
+                # Update log after each product to survive timeouts
+                log.write({
+                    'synced_count': synced_count,
+                    'error_count': error_count,
+                    'no_data_count': no_data_count,
+                })
+                self.env.cr.commit()
             
-            # Update log
+            # Mark as completed when all products are done
             log.write({
                 'end_time': fields.Datetime.now(),
-                'synced_count': synced_count,
-                'error_count': error_count,
-                'no_data_count': no_data_count,
                 'status': 'completed',
             })
+            self.env.cr.commit()
         except Exception as e:
             log.write({
                 'end_time': fields.Datetime.now(),
                 'status': 'failed',
                 'error_message': str(e),
             })
+            self.env.cr.commit()
             raise
         
         return {
@@ -194,16 +212,27 @@ class ProductTemplate(models.Model):
         if not products:
             return
         
-        # Create log entry
-        log = self.env['icecat.sync.log'].create({
-            'sync_type': 'update',
-            'total_products': len(products),
-            'status': 'running',
-        })
+        # Check if there's already a running log for this sync type
+        log = self.env['icecat.sync.log'].search([
+            ('sync_type', '=', 'update'),
+            ('status', '=', 'running'),
+        ], limit=1)
         
-        synced_count = 0
-        error_count = 0
-        no_data_count = 0
+        # If no running log exists, create a new one
+        if not log:
+            log = self.env['icecat.sync.log'].create({
+                'sync_type': 'update',
+                'total_products': len(products),
+                'status': 'running',
+                'synced_count': 0,
+                'error_count': 0,
+                'no_data_count': 0,
+            })
+            self.env.cr.commit()
+        
+        synced_count = log.synced_count
+        error_count = log.error_count
+        no_data_count = log.no_data_count
         
         try:
             for product in products:
@@ -226,21 +255,28 @@ class ProductTemplate(models.Model):
                         'icecat_sync_status': 'error',
                         'icecat_error_message': str(e),
                     })
+                
+                # Update log after each product to survive timeouts
+                log.write({
+                    'synced_count': synced_count,
+                    'error_count': error_count,
+                    'no_data_count': no_data_count,
+                })
+                self.env.cr.commit()
             
-            # Update log
+            # Mark as completed when all products are done
             log.write({
                 'end_time': fields.Datetime.now(),
-                'synced_count': synced_count,
-                'error_count': error_count,
-                'no_data_count': no_data_count,
                 'status': 'completed',
             })
+            self.env.cr.commit()
         except Exception as e:
             log.write({
                 'end_time': fields.Datetime.now(),
                 'status': 'failed',
                 'error_message': str(e),
             })
+            self.env.cr.commit()
             raise
         
         return {
