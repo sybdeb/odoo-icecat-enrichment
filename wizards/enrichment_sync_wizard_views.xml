@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Enrichment Sync Wizard Form -->
+        <record id="enrichment_sync_wizard_form" model="ir.ui.view">
+            <field name="name">enrichment.sync.wizard.form</field>
+            <field name="model">enrichment.sync.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Bulk Product Verrijking">
+                    <group>
+                        <field name="product_ids" invisible="1"/>
+                        <field name="total_products" readonly="1"/>
+                        <field name="force_update"/>
+                        <field name="source_override"/>
+                    </group>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Let op:</strong> Deze actie zal <field name="total_products" readonly="1" class="oe_inline"/> producten verrijken.
+                        <ul class="mt-2 mb-0">
+                            <li>Producten zonder barcode worden overgeslagen</li>
+                            <li>De actie kan even duren afhankelijk van het aantal producten</li>
+                            <li>Controleer de sync logs voor gedetailleerde resultaten</li>
+                        </ul>
+                    </div>
+                    <footer>
+                        <button name="action_enrich_products" string="Start Verrijking" type="object" class="btn-primary"/>
+                        <button string="Annuleren" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+    </data>
+</odoo>

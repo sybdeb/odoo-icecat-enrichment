@@ -1,150 +1,162 @@
-# Icecat Product Enrichment for Odoo 18
+# Product Content Verrijking v19
 
-Automatisch producten verrijken met Icecat data op basis van EAN/GTIN codes.
+Odoo 19 module voor automatische product content verrijking met meerdere databronnen.
 
 ## Features
 
-✅ **Automatische synchronisatie**
-- Nieuwe producten: Batches van 10 stuks per uur (overdag)
-- Update bestaande producten: Grotere batches 's nachts om 02:00 uur
-- Producten ouder dan 30 dagen worden automatisch bijgewerkt
+### Multi-Source Enrichment
+- **BarcodeLookup.com** - Gratis tier beschikbaar, goede basis data
+- **Icecat** - Uitgebreide specificaties en professionele productdata
+- Configureerbare prioriteit en volgorde van bronnen
 
-✅ **Volledige configuratie via Website Settings**
-- Icecat gebruikersnaam en wachtwoord
-- Keuze tussen Open Catalog (gratis) en Full Catalog (betaald)
-- Configureerbare batch groottes
-- In-/uitschakelen van auto-sync
+### Intelligente Data Mapping
+- Eerst lege velden vullen
+- Optioneel gevulde velden overschrijven
+- Per-veld configuratie: welke bron mag welk veld updaten
+- Prijs wordt nooit overschreven (beschermd)
 
-✅ **Flexibele data synchronisatie**
-- Product beschrijvingen
-- Product afbeeldingen
-- Technische specificaties
-- Merk en categorie informatie
+### Flexibele Configuratie
+- Instelbare bron prioriteit:
+  - BarcodeLookup eerst, dan Icecat
+  - Icecat eerst, dan BarcodeLookup
+  - Alleen BarcodeLookup
+  - Alleen Icecat
+- Veld-mapping: bepaal exact welke bron welk veld mag vullen/overschrijven
+- Batch grootte configuratie voor dag/nacht runs
 
-✅ **Status tracking**
-- Per product sync status bekijken
-- Filters op sync status
-- Foutmeldingen logging
-- Laatste sync datum
+### Automatische Synchronisatie
+- Nieuwe producten: kleine batches (10 producten/4 uur)
+- Updates: grote batches (100 producten/nacht)
+- Handmatige bulk acties mogelijk
+- Sync status tracking per product
 
-✅ **Handmatige controle**
-- Handmatige sync per product
-- Bulk sync wizard voor meerdere producten
-- Verschillende sync opties (niet gesynchroniseerd, fouten, verouderd, etc.)
+### Data Verrijking
+- Product naam
+- Beschrijvingen (kort & lang)
+- Productafbeeldingen
+- Specificaties (alleen Icecat)
+- Key highlights accordion (Icecat)
+- Merk/categorie informatie
+- MPN tracking
 
 ## Installatie
 
-1. Plaats de module in je `addons` folder
-2. Update de app lijst in Odoo
-3. Installeer "Icecat Product Enrichment"
-4. Configureer je Icecat credentials in Website > Configuration > Settings
+Zie [INSTALL.md](INSTALL.md) voor gedetailleerde installatie instructies.
 
 ## Configuratie
 
-Ga naar **Website > Configuration > Settings** en scroll naar **Icecat Configuration**:
+### 1. Basis Instellingen
+Ga naar: **Website > Configuratie > Instellingen > Product Verrijking**
 
-1. **API Credentials**
-   - Vul je Icecat gebruikersnaam in
-   - Vul je Icecat wachtwoord in
-   - Kies je catalog type (Open of Full)
+### 2. BarcodeLookup Setup
+1. Vink "BarcodeLookup Actief" aan
+2. Voer je API key in (verkrijg via https://www.barcodelookup.com/api)
+3. Klik "Test Connectie" om te valideren
 
-2. **Synchronization Settings**
-   - ✅ Sync Description: Product beschrijvingen bijwerken
-   - ✅ Sync Images: Product afbeeldingen downloaden
-   - ✅ Sync Specifications: Technische specs toevoegen
+### 3. Icecat Setup
+1. Vink "Icecat Actief" aan
+2. Voer username en password in
+3. Kies Open (gratis) of Full (betaald) catalog
+4. Klik "Test Connectie" om te valideren
 
-3. **Batch Processing**
-   - New Products Batch Size: 10 (aanbevolen voor overdag)
-   - Update Batch Size: 100 (aanbevolen voor 's nachts)
+### 4. Bron Prioriteit
+Kies de volgorde waarin bronnen gebruikt worden:
+- **BarcodeLookup eerst, dan Icecat** (aanbevolen) - Gebruik gratis BarcodeLookup quota, vul aan met Icecat
+- **Icecat eerst, dan BarcodeLookup** - Best mogelijke specs eerst
+- **Alleen BarcodeLookup** - Voor simpele webshops
+- **Alleen Icecat** - Voor maximale product detail
+
+### 5. Veld Mapping (Geavanceerd)
+**Website > Configuratie > Product > Veld Mapping**
+
+Configureer per veld:
+- Welke bronnen het mogen vullen (BarcodeLookup / Icecat)
+- Of overschrijven is toegestaan
+- Notities per mapping
+
+**Standaard gedrag:**
+- Lege velden worden altijd gevuld (eerste beschikbare bron)
+- Gevulde velden alleen overschrijven als toegestaan in mapping
+- Prijs wordt nooit aangeraakt
 
 ## Gebruik
 
-### Automatische synchronisatie
-
-De module synchroniseert automatisch:
-- **Elk uur (overdag)**: 10 nieuwe producten met een EAN maar nog niet gesynchroniseerd
-- **Elke nacht om 02:00**: 100 producten die langer dan 30 dagen geleden gesynchroniseerd zijn
-
-### Handmatige synchronisatie
-
-**Enkel product:**
+### Handmatig Enkel Product
 1. Open een product
-2. Zorg dat het product een barcode (EAN/GTIN) heeft
-3. Klik op "Sync with Icecat" knop
+2. Zorg dat het een barcode heeft
+3. Klik "Verrijk Product" button
+4. Bekijk de "Content Verrijking" tab voor details
 
-**Meerdere producten:**
-1. Ga naar Sales > Products > Products
-2. Selecteer de producten die je wilt synchroniseren
-3. Klik op Action > Sync with Icecat
-4. Kies je sync type en batch size
-5. Klik op "Start Sync"
+### Bulk Verrijking
+1. Ga naar Product lijst
+2. Selecteer meerdere producten
+3. **Actie > Bulk Product Verrijking**
+4. Kies opties:
+   - Force Update: ook al verrijkte producten updaten
+   - Bron Override: tijdelijk andere bron prioriteit
+5. Klik "Start Verrijking"
 
-### Filters gebruiken
+### Automatisch via Cron
+Twee cron jobs draaien automatisch:
+- **Nieuwe Producten**: Elke 4 uur, 10 producten per batch
+- **Updates**: Elke nacht om 02:00, 100 producten per batch
 
-In de product lijst zijn handige filters beschikbaar:
-- **Not Synced with Icecat**: Producten die nog nooit gesynchroniseerd zijn
-- **Synced with Icecat**: Succesvol gesynchroniseerde producten
-- **Icecat Sync Errors**: Producten waarbij de sync fout ging
-- **Pending Icecat Sync**: Producten in de wachtrij
+Configureer batch groottes in Website Settings.
 
-## Icecat Account Informatie
+## Sync Logs
 
-Deze module werkt met de Icecat JSON API zoals beschreven op:
-https://iceclog.com/manual-for-icecat-json-product-requests/
+Bekijk verrijkings geschiedenis:
+**Website > Configuratie > Product > Sync Logs**
 
-### Vereisten:
-- Een Icecat account (gratis voor Open Catalog)
-- Geldige gebruikersnaam en wachtwoord
-- Internet connectie
+Per log zie je:
+- Sync type (manual/new/update)
+- Aantal succesvol/errors/geen data
+- Gebruikte bronnen
+- Tijdsduur
+- Error details (indien van toepassing)
 
-### Icecat Open vs Full:
-- **Open Catalog**: Gratis, beperkte data, basis product info
-- **Full Catalog**: Betaald, volledige data, uitgebreide specs en afbeeldingen
+## Product Filters
 
-## Technische Details
+Filter producten op verrijkings status:
+- Niet Verrijkt
+- Verrijkt
+- Verrijkings Errors
+- Geen Data Beschikbaar
+- Data van BarcodeLookup
+- Data van Icecat
 
-### Velden toegevoegd aan product.template:
+## Aanbevolen Strategie
 
-- `icecat_sync_status`: Status van de synchronisatie
-- `icecat_last_sync`: Datum/tijd van laatste sync
-- `icecat_product_id`: Icecat product ID
-- `icecat_brand`: Merk uit Icecat
-- `icecat_category`: Categorie uit Icecat
-- `icecat_quality`: Data kwaliteit indicator
-- `icecat_error_message`: Laatste foutmelding
+### Voor Maximale Data + Minimale Kosten
 
-### Scheduled Actions:
+```
+Prioriteit: BarcodeLookup eerst, dan Icecat
+BarcodeLookup: Actief (gratis tier)
+Icecat: Actief (Open Catalog - gratis)
+```
 
-1. **Icecat: Sync New Products**
-   - Frequentie: Elk uur
-   - Batch: 10 producten
-   - Doel: Nieuwe producten synchroniseren
+**Wat gebeurt er:**
+1. Eerst wordt BarcodeLookup geprobeerd (gratis quota)
+2. Bij geen/weinig data → Icecat (onbeperkt gratis + betere specs)
+3. Icecat overschrijft met rijkere data (specs, betere beschrijvingen)
+4. Je houdt mooie Icecat uitklapbare specificaties op PDP
 
-2. **Icecat: Update Existing Products**
-   - Frequentie: Dagelijks om 02:00
-   - Batch: 100 producten
-   - Doel: Bestaande producten bijwerken (>30 dagen oud)
+**Resultaat:**
+- Altijd de beste beschikbare data
+- Gratis BarcodeLookup calls eerst
+- Icecat vult aan met professionele specs
+- Geen conflicten (Icecat wint op kwaliteit)
 
-## Dependencies
+## Support
 
-- `base`
-- `product`
-- `website_sale`
-- Python: `requests` library
+Voor vragen of issues:
+- Email: support@nerbys.nl
+- Website: https://www.nerbys.nl
 
 ## Licentie
 
 LGPL-3
 
-## Support
+## Credits
 
-Voor vragen of problemen, neem contact op met Nerbys.
-
-## Changelog
-
-### Version 18.0.1.0.0
-- Initiële release
-- Icecat JSON API integratie
-- Automatische batch synchronisatie
-- Configureerbaar via Website Settings
-- Status tracking en error handling
+Ontwikkeld door Nerbys

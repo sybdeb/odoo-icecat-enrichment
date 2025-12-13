@@ -12,7 +12,6 @@
                     <field name="product_count"/>
                     <field name="internal_category_id"/>
                     <field name="odoo_category_id"/>
-                    <field name="google_category_id"/>
                     <field name="auto_publish" widget="boolean_toggle"/>
                     <button name="action_apply_to_products" 
                             type="object" 
@@ -50,7 +49,6 @@
                             <group>
                                 <field name="internal_category_id"/>
                                 <field name="odoo_category_id"/>
-                                <field name="google_category_id" options="{'no_create': True, 'no_open': True}"/>
                             </group>
                         </group>
                     </sheet>

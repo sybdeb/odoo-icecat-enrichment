@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Enrichment Sync Log Tree View -->
+        <record id="enrichment_sync_log_tree_view" model="ir.ui.view">
+            <field name="name">enrichment.sync.log.tree</field>
+            <field name="model">enrichment.sync.log</field>
+            <field name="arch" type="xml">
+                <list string="Verrijkings Logs" create="false" edit="false">
+                    <field name="name"/>
+                    <field name="sync_type"/>
+                    <field name="start_time"/>
+                    <field name="end_time"/>
+                    <field name="total_products"/>
+                    <field name="synced_count"/>
+                    <field name="error_count"/>
+                    <field name="no_data_count"/>
+                    <field name="sources_used"/>
+                    <field name="status" widget="badge"
+                           decoration-success="status == 'completed'"
+                           decoration-info="status == 'running'"
+                           decoration-danger="status == 'failed'"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Enrichment Sync Log Form View -->
+        <record id="enrichment_sync_log_form_view" model="ir.ui.view">
+            <field name="name">enrichment.sync.log.form</field>
+            <field name="model">enrichment.sync.log</field>
+            <field name="arch" type="xml">
+                <form string="Verrijkings Log" create="false" edit="false">
+                    <header>
+                        <field name="status" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="name"/>
+                                <field name="sync_type"/>
+                                <field name="start_time"/>
+                                <field name="end_time"/>
+                            </group>
+                            <group>
+                                <field name="total_products"/>
+                                <field name="synced_count"/>
+                                <field name="error_count"/>
+                                <field name="no_data_count"/>
+                                <field name="sources_used"/>
+                            </group>
+                        </group>
+                        <group string="Error Details" invisible="status != 'failed'">
+                            <field name="error_message" nolabel="1"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Enrichment Sync Log Action -->
+        <record id="action_enrichment_sync_log" model="ir.actions.act_window">
+            <field name="name">Verrijkings Logs</field>
+            <field name="res_model">enrichment.sync.log</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <!-- Root Menu - same location as v18 Icecat menu -->
+        <menuitem id="menu_enrichment_root"
+                  name="Product Verrijking"
+                  parent="sale.sale_menu_root"
+                  sequence="100"/>
+
+        <!-- Menu Item -->
+        <menuitem id="menu_enrichment_sync_log"
+                  name="Sync Logs"
+                  parent="menu_enrichment_root"
+                  action="action_enrichment_sync_log"
+                  sequence="10"/>
+
+    </data>
+</odoo>

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Icecat Product Enrichment',
-    'version': '18.0.1.0.0',
+    'version': '19.0.1.0.0',
     'category': 'Sales/Product',
     'summary': 'Enrich products with Icecat data based on EAN/GTIN',
     'description': """

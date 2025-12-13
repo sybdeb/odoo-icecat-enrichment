@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- 1. Toon jouw mooie Icecat specificaties (onder de beschrijving) -->
+        <template id="icecat_product_specifications" inherit_id="website_sale.product" priority="40">
+            <xpath expr="//div[@id='product_full_description']" position="after">
+                <div t-if="product.icecat_specifications_grouped" class="mt-5">
+                    <h3 class="mb-4">Technische specificaties</h3>
+                    <div id="icecat-accordion" class="accordion">
+                        <t t-raw="product.icecat_specifications_grouped"/>
+                    </div>
+
+                    <!-- Jouw bestaande CSS + JS (ik heb het iets opgeschoond) -->
+                    <style>
+                        #icecat-accordion .accordion-item { border: 1px solid #dee2e6; border-radius: .5rem; margin-bottom: 1rem; overflow: hidden; }
+                        #icecat-accordion .accordion-button { background: linear-gradient(135deg, #007bff, #0056b3); color: white; font-weight: 600; }
+                        #icecat-accordion .accordion-button:not(.collapsed) { background: #0056b3; }
+                        #icecat-accordion table { margin: 0; }
+                        #icecat-accordion td { padding: 10px 15px; border-bottom: 1px solid #f8f9fa; }
+                        #icecat-accordion td:first-child { background: #f8f9fa; font-weight: 600; width: 40%; }
+                    </style>
+
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            const sections = document.querySelectorAll('#icecat-accordion > div');
+                            const accordion = document.getElementById('icecat-accordion');
+                            accordion.innerHTML = '';
+
+                            sections.forEach((section, i) => {
+                                const title = section.querySelector('h3, h4, strong')?.textContent.trim() || 'Specificaties';
+                                const table = section.querySelector('table') || section;
+
+                                const item = document.createElement('div');
+                                item.className = 'accordion-item';
+
+                                item.innerHTML = `
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#icecat-collapse-${i}">
+                                            ${title}
+                                        </button>
+                                    </h2>
+                                    <div id="icecat-collapse-${i}" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            ${table.outerHTML || table.innerHTML}
+                                        </div>
+                                    </div>
+                                `;
+                                accordion.appendChild(item);
+                            });
+                        });
+                    </script>
+                </div>
+            </xpath>
+        </template>
+
+
+    </data>
+</odoo>

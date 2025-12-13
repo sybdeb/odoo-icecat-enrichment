@@ -19,9 +19,23 @@ class IcecatConnector(models.AbstractModel):
     def _get_config_param(self, param_name, default=None):
         """Helper to get configuration parameters"""
         return self.env['ir.config_parameter'].sudo().get_param(
-            f'icecat_product_enrichment.{param_name}',
+            f'product_content_verrijking.{param_name}',
             default=default
         )
+
+    @api.model
+    def _cfg_bool(self, key, default=False):
+        """Veilige boolean uit ir.config_parameter"""
+        val = self._get_config_param(key)
+        return str(val).lower() in ('true', '1', 'yes', 'on')
+
+    @api.model
+    def _cfg_int(self, key, default=0):
+        val = self._get_config_param(key)
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return default
 
     @api.model
     def _get_api_credentials(self):
@@ -51,6 +65,9 @@ class IcecatConnector(models.AbstractModel):
         username, password = self._get_api_credentials()
         api_url = self._get_api_url()
         
+        # Ensure EAN code is a string
+        ean_code = str(ean_code or '').strip()
+        
         # Log the barcode we received
         _logger.info(f"Received EAN code: '{ean_code}' (type: {type(ean_code).__name__})")
         
@@ -61,7 +78,11 @@ class IcecatConnector(models.AbstractModel):
         
         # Construct the API endpoint for EAN lookup
         # Format: https://live.icecat.biz/api?lang=EN&shopname=username&GTIN=EAN&content=
-        url = f"{api_url}?lang=en&shopname={username}&GTIN={ean_code}&content="
+        # Get language from context or use Dutch as default
+        lang_code = self.env.context.get('lang', 'nl_NL')
+        # Map Odoo language codes to Icecat language codes
+        icecat_lang = 'nl' if lang_code.startswith('nl') else 'en'
+        url = f"{api_url}?lang={icecat_lang}&shopname={username}&GTIN={ean_code}&content="
         
         _logger.info(f"Requesting Icecat data for EAN: {ean_code}")
         
@@ -216,142 +237,99 @@ class IcecatConnector(models.AbstractModel):
     def _download_image(self, image_url):
         """Download image from URL and return base64 encoded data"""
         try:
-            response = requests.get(image_url, timeout=30)
-            if response.status_code == 200:
-                return base64.b64encode(response.content)
-            else:
-                _logger.warning(f"Failed to download image: {image_url}")
-                return None
+            response = requests.get(
+                image_url,
+                stream=True,
+                timeout=15,
+                headers={'User-Agent': 'Odoo/18.0 Icecat-Module'},
+            )
+            response.raise_for_status()
+            return base64.b64encode(response.content)
         except Exception as e:
-            _logger.error(f"Error downloading image {image_url}: {e}")
+            _logger.warning("Image download mislukt %s: %s", image_url, e)
             return None
 
     @api.model
     def _sync_product_attributes(self, product, specifications):
         """
-        Sync Icecat specifications as Odoo product attributes with eCommerce categories
-        This creates a Tweakers-style specification display
+        Sync Icecat specifications to Odoo's standard product.attribute system
+        Groups specs by category with [Icecat] prefix for automatic backend grouping
+        100% compatible with eCommerce filters, variants, and search
         """
         if not specifications:
             return
-        
-        # Define which feature groups to sync as attributes (only important ones)
-        IMPORTANT_GROUPS = [
-            'Display',
-            'Performance', 
-            'Design',
-            'Multimedia',
-            'Processor',
-            'Memory',
-            'Storage',
-            'Graphics',
-            'Battery',
-            'Connectivity',
-            'Ports & interfaces',
-            'Network',
-            'Power',
-            'Weight & dimensions',
-            'Ergonomics'
-        ]
-        
-        # Define which specific features to skip (too technical or not useful for customers)
-        SKIP_FEATURES = [
-            'Harmonized System (HS) code',
-            'European Product Registry for Energy Labelling (EPREL) code',
-            'Regulatory Approvals',
-            'Certification',
-            'Compliance certificates',
-            'Mean time between failures (MTBF)',
-            'Delta E',
-            'Pixel pitch',
-            'Digital horizontal frequency',
-            'Digital vertical frequency',
-            'Horizontal scan range',
-            'Vertical scan range',
-            'Haze rate',
-            'Surface hardness',
-            'Windows operating systems supported',
-            'Mac operating systems supported',
-            'On Screen Display (OSD) languages'
-        ]
         
         attribute_obj = self.env['product.attribute']
         value_obj = self.env['product.attribute.value']
         template_attr_obj = self.env['product.template.attribute.line']
         
-        # Group specifications by category and filter
-        specs_by_group = {}
-        for spec in specifications:
-            # Skip if not in important groups
-            if spec['group'] not in IMPORTANT_GROUPS:
-                continue
-            
-            # Skip blacklisted features
-            if spec['name'] in SKIP_FEATURES:
-                continue
-            
-            # Skip very long values (usually lists of OS versions etc)
-            if len(str(spec['value'])) > 100:
-                continue
-            
-            if spec['group'] not in specs_by_group:
-                specs_by_group[spec['group']] = []
-            
-            specs_by_group[spec['group']].append({
-                'name': spec['name'],
-                'value': spec['value']
-            })
+        _logger.info(f"Syncing {len(specifications)} specifications as attributes for product {product.name}")
         
-        # Process each group
-        for group_name, specs in specs_by_group.items():
-            # Create attributes for each spec in this group
+        # Remove only Icecat-managed attributes (preserve manual ones)
+        icecat_lines = product.attribute_line_ids.filtered(
+            lambda l: l.attribute_id.name.startswith('[Icecat]')
+        )
+        if icecat_lines:
+            icecat_lines.unlink()
+        
+        # Group specifications by category for cleaner attribute structure
+        grouped_specs = {}
+        for spec in specifications:
+            group = spec.get('group') or 'Algemeen'
+            if group not in grouped_specs:
+                grouped_specs[group] = []
+            grouped_specs[group].append(spec)
+        
+        # Create attributes per group (enables automatic backend grouping)
+        for group_name, specs in grouped_specs.items():
+            # Attribute name: [Icecat] Group → auto-groups in backend
+            attr_name = f"[Icecat] {group_name}"
+            
+            # Find or create the group attribute
+            attribute = attribute_obj.search([('name', '=', attr_name)], limit=1)
+            if not attribute:
+                attribute = attribute_obj.create({
+                    'name': attr_name,
+                    'display_type': 'select',
+                    'create_variant': 'no_variant',  # Don't create product variants
+                })
+            
+            # Collect all values for this group
+            values_to_create = []
             for spec in specs:
-                # Use group prefix for clarity since Community has no categories
-                attr_name = f"{group_name}: {spec['name']}"
-                attr_value = spec['value']
+                spec_name = spec.get('name')
+                spec_value = str(spec.get('value', ''))
                 
-                # Find or create the attribute
-                attribute = attribute_obj.search([
-                    ('name', '=', attr_name)
-                ], limit=1)
+                if not spec_name or not spec_value:
+                    continue
                 
-                if not attribute:
-                    attribute = attribute_obj.create({
-                        'name': attr_name,
-                        'create_variant': 'no_variant',  # Don't create variants
-                        'display_type': 'select',
-                    })
+                # Value format: "Spec Name: Value"
+                value_name = f"{spec_name}: {spec_value}"
                 
                 # Find or create the attribute value
                 value = value_obj.search([
                     ('attribute_id', '=', attribute.id),
-                    ('name', '=', str(attr_value))
+                    ('name', '=', value_name)
                 ], limit=1)
                 
                 if not value:
                     value = value_obj.create({
                         'attribute_id': attribute.id,
-                        'name': str(attr_value),
+                        'name': value_name,
                     })
                 
-                # Check if this attribute line already exists on the product
-                existing_line = template_attr_obj.search([
-                    ('product_tmpl_id', '=', product.id),
-                    ('attribute_id', '=', attribute.id)
-                ], limit=1)
-                
-                if existing_line:
-                    # Update existing line with new value
-                    if value.id not in existing_line.value_ids.ids:
-                        existing_line.write({
-                            'value_ids': [(4, value.id)]
-                        })
-                else:
-                    # Create new attribute line
+                values_to_create.append(value.id)
+            
+            # Create attribute line with all values for this group
+            if values_to_create:
+                existing_line = product.attribute_line_ids.filtered(
+                    lambda l: l.attribute_id.id == attribute.id
+                )
+                if not existing_line:
                     template_attr_obj.create({
                         'product_tmpl_id': product.id,
                         'attribute_id': attribute.id,
-                        'value_ids': [(4, value.id)]
+                        'value_ids': [(6, 0, values_to_create)]
                     })
 
 
@@ -407,96 +385,88 @@ class IcecatConnector(models.AbstractModel):
         update_vals = {
             'icecat_sync_status': 'synced',
             'icecat_last_sync': fields.Datetime.now(),
-            'icecat_product_id': product_info.get('product_id'),
             'icecat_brand': product_info.get('brand'),
             'icecat_category': product_info.get('category'),
-            'icecat_quality': product_info.get('quality'),
             'icecat_error_message': False,
         }
         
         # Update name if empty
-        if not product.name or product.name == 'New Product':
-            if product_info.get('title'):
-                update_vals['name'] = product_info['title']
+        # Always update product name with brand + title from Icecat
+        if product_info.get('title'):
+            brand = product_info.get('brand', '')
+            title = product_info.get('title', '')
+            if brand and title:
+                update_vals['name'] = f"{brand} {title}"
+            else:
+                update_vals['name'] = title
         
-        # Update description if configured
+        # Always update description_ecommerce for website display
+        if product_info.get('description_long'):
+            update_vals['description_ecommerce'] = product_info['description_long']
+        elif product_info.get('description_short'):
+            update_vals['description_ecommerce'] = product_info['description_short']
+        
+        # Update description_sale if configured
         if self._get_config_param('sync_description', 'True') == 'True':
-            description_parts = []
-            
             if product_info.get('description_long'):
-                description_parts.append(product_info['description_long'])
+                update_vals['description_sale'] = product_info['description_long']
             elif product_info.get('description_short'):
-                description_parts.append(product_info['description_short'])
-            
-            # Add specifications if configured
-            if self._get_config_param('sync_specifications', 'True') == 'True':
-                if product_info.get('specifications'):
-                    # Group specifications by category
-                    specs_by_group = {}
-                    for spec in product_info['specifications']:
-                        group = spec['group'] or 'General'
-                        if group not in specs_by_group:
-                            specs_by_group[group] = []
-                        specs_by_group[group].append(spec)
-                    
-                    # Create collapsible accordion HTML
-                    specs_html = '<div class="accordion mt-4" id="productSpecifications">'
-                    
-                    for idx, (group_name, specs) in enumerate(specs_by_group.items()):
-                        collapse_id = f"collapse{idx}"
-                        is_first = idx == 0
-                        show_class = "show" if is_first else ""
-                        collapsed_class = "" if is_first else "collapsed"
-                        
-                        specs_html += f'''
-                        <div class="accordion-item">
-                            <h2 class="accordion-header" id="heading{idx}">
-                                <button class="accordion-button {collapsed_class}" type="button" data-bs-toggle="collapse" 
-                                        data-bs-target="#{collapse_id}" aria-expanded="{str(is_first).lower()}" aria-controls="{collapse_id}">
-                                    {group_name}
-                                </button>
-                            </h2>
-                            <div id="{collapse_id}" class="accordion-collapse collapse {show_class}" 
-                                 aria-labelledby="heading{idx}" data-bs-parent="#productSpecifications">
-                                <div class="accordion-body p-0">
-                                    <table class="table table-sm table-striped mb-0">
-                                        <tbody>
-                        '''
-                        
-                        for spec in specs:
-                            specs_html += f'<tr><td class="w-50">{spec["name"]}</td><td>{spec["value"]}</td></tr>'
-                        
-                        specs_html += '''
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        '''
-                    
-                    specs_html += '</div>'
-                    description_parts.append(specs_html)
-            
-            if description_parts:
-                combined_description = '\n\n'.join(description_parts)
-                update_vals['description_sale'] = combined_description
-                # Also set website description so it shows on product page
-                update_vals['website_description'] = combined_description
+                update_vals['description_sale'] = product_info['description_short']
         
+        # Update brand if product_brand module is installed
+        if 'product_brand_id' in self.env['product.template']._fields:
+            brand_name = product_info.get('brand')
+            if brand_name:
+                brand = self.env['product.brand'].search([('name', '=', brand_name)], limit=1)
+                if not brand:
+                    brand = self.env['product.brand'].create({'name': brand_name})
+                update_vals['product_brand_id'] = brand.id
+
         # Update images if configured
         if self._get_config_param('sync_images', 'True') == 'True':
-            if product_info.get('images') and len(product_info['images']) > 0:
-                # Get the first/main image
-                main_image = product_info['images'][0]
-                image_data = self._download_image(main_image['url'])
+            if product_info.get('images'):
+                # Get existing Icecat images (by name pattern)
+                existing_images = self.env['product.image'].search([
+                    ('product_tmpl_id', '=', product.id),
+                    ('name', 'ilike', 'Icecat Image')
+                ])
+                # Delete old Icecat images to avoid duplicates
+                existing_images.unlink()
                 
-                if image_data:
-                    update_vals['image_1920'] = image_data
+                # Sync images
+                image_count = 0
+                for idx, image_info in enumerate(product_info['images']):
+                    url = image_info.get('url') or image_info.get('pic')
+                    if not url:
+                        continue
+
+                    image_data = self._download_image(url)
+                    if not image_data:
+                        continue
+
+                    if idx == 0:
+                        # Main image
+                        update_vals['image_1920'] = image_data
+                        image_count += 1
+                    else:
+                        # Extra images
+                        self.env['product.image'].create({
+                            'product_tmpl_id': product.id,
+                            'image_1920': image_data,
+                            'name': image_info.get('title', f"Icecat Image {idx + 1}"),
+                            'sequence': idx,
+                        })
+                        image_count += 1
+
         
         # Write updates to product
         product.write(update_vals)
         
-        # Sync product attributes/specifications if configured
+        # Always store raw specifications for grouped display
+        if product_info.get('specifications'):
+            product.write({'icecat_specifications_raw': product_info['specifications']})
+        
+        # Sync specifications as product attributes if configured
         if self._get_config_param('sync_attributes', 'False') == 'True':
             if product_info.get('specifications'):
                 self._sync_product_attributes(product, product_info['specifications'])

@@ -1,130 +1,184 @@
-# Installatie Instructies - Icecat Product Enrichment
+# Installatie Instructies - Product Content Verrijking
 
-## Stap 1: Module installeren
+## Vereisten
 
-De module staat al in je addons folder. Voer deze commando's uit:
+- Odoo 19.0
+- Python 3.10+
+- `requests` library
+- Modules: `product`, `website_sale`, `product_google_category`
+
+## Installatie Stappen
+
+### 1. Module Installeren
 
 ```bash
-cd /c/Users/Sybde/Projects/odoo-dev
+# Kopieer de module naar je Odoo addons directory
+cp -r product_content_verrijking /path/to/odoo/addons/
 
-# Herstart Odoo (via je bestaande script)
-./restart-odoo.sh
+# Of maak een symlink
+ln -s /path/to/product_content_verrijking /path/to/odoo/addons/
 ```
 
-## Stap 2: Module activeren in Odoo
+### 2. Update Addons Lijst
 
-1. Log in op Odoo als administrator
-2. Ga naar **Apps**
-3. Klik op "Update Apps List" (mogelijk moet je eerst developer mode aanzetten)
-4. Zoek naar "Icecat Product Enrichment"
-5. Klik op **Install**
+In Odoo:
+1. Ga naar **Apps**
+2. Klik op menu (☰) → **Update Apps List**
+3. Bevestig update
 
-## Stap 3: Configureer je Icecat credentials
+### 3. Installeer Module
 
-1. Ga naar **Website > Configuration > Settings**
-2. Scroll naar beneden tot je **Icecat Configuration** ziet
-3. Vul in:
-   - **Icecat Username**: `NerbysNL`
-   - **Icecat Password**: `DG.BQBEH.005`
-   - **Catalog Type**: `Icecat Open Catalog` (of Full als je daar toegang toe hebt)
-4. Zorg dat deze opties aangevinkt zijn:
-   - ✅ Enable Auto Sync
-   - ✅ Sync Description
-   - ✅ Sync Images
-   - ✅ Sync Specifications
-5. Controleer de batch groottes:
-   - New Products Batch Size: `10`
-   - Update Batch Size: `100`
-6. Klik op **Save**
+1. Zoek naar "Product Content Verrijking"
+2. Klik **Install**
 
-## Stap 4: Test met een product
+### 4. Configureer Data Bronnen
 
-1. Ga naar **Sales > Products > Products**
-2. Open een bestaand product of maak een nieuw product
-3. Zorg dat het product een **Barcode** (EAN/GTIN) heeft
-4. Klik op de knop **Sync with Icecat**
-5. Je zou een notificatie moeten zien of het gelukt is
+#### BarcodeLookup.com (Optioneel)
 
-## Stap 5: Check de automatische synchronisatie
+1. Ga naar https://www.barcodelookup.com/api
+2. Meld je aan voor een gratis account
+3. Kopieer je API key
+4. In Odoo: **Website > Configuratie > Instellingen**
+5. Scroll naar "Product Verrijking"
+6. Vink "BarcodeLookup Actief" aan
+7. Plak je API key
+8. Klik "Test Connectie"
 
-De module heeft 2 scheduled actions aangemaakt:
+**Gratis Tier:**
+- 100 requests/dag
+- Basis product data
+- 1 foto
+- Perfect voor kleine webshops
 
-### Icecat: Sync New Products
-- **Wanneer**: Elk uur
-- **Wat**: Synchroniseert 10 nieuwe producten die nog niet zijn gesynchroniseerd
-- **Check**: Ga naar Settings > Technical > Automation > Scheduled Actions
-- **Zoek**: "Icecat: Sync New Products"
+#### Icecat (Aanbevolen)
 
-### Icecat: Update Existing Products  
-- **Wanneer**: Elke nacht om 02:00
-- **Wat**: Update 100 producten die langer dan 30 dagen geleden zijn gesynchroniseerd
-- **Check**: Ga naar Settings > Technical > Automation > Scheduled Actions
-- **Zoek**: "Icecat: Update Existing Products"
+1. Ga naar https://icecat.biz/en/menu/register/index.html
+2. Registreer een account
+3. Kies Open Catalog (gratis) of Full Catalog (betaald)
+4. Kopieer username en password
+5. In Odoo: **Website > Configuratie > Instellingen**
+6. Scroll naar "Icecat Configuratie"
+7. Vink "Icecat Actief" aan
+8. Voer username en password in
+9. Kies Catalog Type
+10. Klik "Test Connectie"
 
-## Stap 6: Bulk synchronisatie (optioneel)
+**Open Catalog (Gratis):**
+- Grote merken (Samsung, HP, Dell, etc.)
+- Volledige specificaties
+- Multiple afbeeldingen
+- Onbeperkt aantal requests
 
-Als je meerdere producten in één keer wilt synchroniseren:
+**Full Catalog (Betaald):**
+- Alle merken
+- Premium content
+- Vereist licentie
 
-1. Ga naar **Sales > Products > Products**
-2. Filter op "Not Synced with Icecat" (nieuwe filter in de zoekbalk)
-3. Selecteer de producten die je wilt synchroniseren
-4. Klik op **Action > Sync with Icecat**
-5. Kies je opties:
-   - Sync Type: "Selected Products Only"
-   - Batch Size: 10 of meer
-6. Klik op **Start Sync**
+### 5. Configureer Bron Prioriteit
+
+In **Website > Configuratie > Instellingen > Product Verrijking**:
+
+**Aanbevolen voor beginners:**
+```
+Bron Prioriteit: "BarcodeLookup eerst, dan Icecat"
+```
+
+Dit gebruikt:
+1. Eerst gratis BarcodeLookup tier
+2. Dan onbeperkt gratis Icecat Open
+3. Beste specs van Icecat
+4. Minimale kosten
+
+### 6. Configureer Veld Mapping (Optioneel)
+
+Voor geavanceerde controle over welke bron welk veld mag updaten:
+
+1. Ga naar **Website > Configuratie > Product > Veld Mapping**
+2. Klik **Create**
+3. Kies een veld (bijv. "Product Naam")
+4. Vink bronnen aan die dit veld mogen vullen
+5. Vink "Overschrijven Toestaan" aan indien gewenst
+6. Sla op
+
+**Default gedrag zonder mapping:**
+- Name: beide bronnen, niet overschrijven
+- Description: Icecat voorrang, wel overschrijven
+- Image: beide bronnen, niet overschrijven
+
+### 7. Test de Installatie
+
+1. Maak een test product met een bekende barcode
+   - Bijvoorbeeld: `5449000000996` (Coca-Cola)
+2. Klik "Verrijk Product" button
+3. Controleer de "Content Verrijking" tab
+4. Verifieer dat data correct is ingevuld
+
+## Verificatie Checklist
+
+- [ ] Module geïnstalleerd zonder errors
+- [ ] BarcodeLookup API test succesvol (indien gebruikt)
+- [ ] Icecat API test succesvol
+- [ ] Bron prioriteit geconfigureerd
+- [ ] Test product succesvol verrijkt
+- [ ] Cron jobs actief (check in Settings > Technical > Scheduled Actions)
+
+## Cron Jobs
+
+Twee cron jobs worden automatisch aangemaakt:
+
+### 1. Nieuwe Producten
+- **Naam:** Product Verrijking: Nieuwe Producten
+- **Frequentie:** Elke 4 uur
+- **Batch:** 10 producten
+- **Functie:** Verrijkt nieuwe producten met barcode
+
+### 2. Update Bestaande
+- **Naam:** Product Verrijking: Update Bestaande  
+- **Frequentie:** Dagelijks om 02:00
+- **Batch:** 100 producten
+- **Functie:** Update producten ouder dan 30 dagen
+
+**Cron configuratie aanpassen:**
+1. Ga naar **Settings > Technical > Scheduled Actions**
+2. Zoek "Product Verrijking"
+3. Pas interval/batch size aan indien gewenst
 
 ## Troubleshooting
 
-### "Icecat credentials not configured"
-- Controleer of je de username en password hebt ingevuld in Website Settings
-- Zorg dat er geen extra spaties zijn
+### "Geen credentials geconfigureerd"
+- Controleer of je API keys/credentials correct zijn ingevuld
+- Klik "Test Connectie" om te valideren
 
-### "Product not found in Icecat database"
-- Niet alle EAN codes staan in Icecat
-- Controleer of de EAN code correct is
-- Probeer het product handmatig op https://icecat.biz te zoeken
+### "Product niet gevonden in database"
+- Barcode bestaat niet in de bron
+- Probeer andere barcode
+- Check of je de juiste Icecat catalog type hebt (Open vs Full)
 
-### "Authentication failed"
-- Controleer je Icecat username en password
-- Test je credentials op https://icecat.biz
-- Let op hoofdletters/kleine letters in het wachtwoord
+### "API timeout"
+- Internet connectie probleem
+- Verhoog timeout in code indien nodig
 
-### Producten worden niet automatisch gesynchroniseerd
-- Check of "Enable Auto Sync" aanstaat in de settings
-- Controleer of de scheduled actions active zijn
-- Check de logs: Settings > Technical > Logging
+### Cron jobs draaien niet
+- Check of "Automatische Verrijking Actief" aan staat
+- Verifieer cron jobs in Technical > Scheduled Actions
+- Check Odoo cron worker is actief
 
-## Handige filters in de product lijst
+### Velden worden niet overschreven
+- Check Veld Mapping configuratie
+- "Overschrijven Toestaan" moet aan staan
+- Of veld is leeg (wordt altijd gevuld)
 
-Na installatie heb je deze filters beschikbaar:
-- **Not Synced with Icecat**: Producten die nog moeten worden gesynchroniseerd
-- **Synced with Icecat**: Succesvol gesynchroniseerde producten  
-- **Icecat Sync Errors**: Producten waarbij een fout optrad
-- **Pending Icecat Sync**: Producten die in de wachtrij staan
+## Ondersteuning
 
-## Status indicatoren
+Voor hulp:
+- Email: support@nerbys.nl
+- Website: https://www.nerbys.nl
 
-In de product lijst zie je badges:
-- 🟢 **Synced**: Product is succesvol gesynchroniseerd
-- 🔵 **Pending**: Product staat in de wachtrij
-- 🔴 **Error**: Er is een fout opgetreden
-- 🟡 **No Data**: Product niet gevonden in Icecat
-- ⚪ **Not Synced**: Product is nog niet gesynchroniseerd
+## Upgrades
 
-## Volgende stappen
-
-1. Zorg dat al je producten een EAN/GTIN barcode hebben
-2. Laat de automatische synchronisatie een dag draaien
-3. Check de resultaten en pas de batch groottes aan indien nodig
-4. Voor problemen: check de Icecat tab op het product voor foutmeldingen
-
-## Extra informatie
-
-- De module gebruikt de Icecat JSON API
-- Alleen producten met een barcode worden gesynchroniseerd
-- Product data wordt alleen overschreven als je dat hebt ingesteld
-- Images worden automatisch gedownload en opgeslagen
-- Specificaties worden toegevoegd aan de Sales Description
-
-Veel succes met je Icecat integratie! 🚀
+Bij updates:
+1. Update module code
+2. Ga naar Apps
+3. Zoek module
+4. Klik "Upgrade"
+5. Check changelog voor breaking changes

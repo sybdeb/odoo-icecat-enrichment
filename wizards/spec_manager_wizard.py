@@ -21,7 +21,11 @@ class SpecManagerWizard(models.TransientModel):
             # Parse specifications and create lines
             lines = []
             if product.icecat_specifications_raw:
-                specs = json.loads(product.icecat_specifications_raw)
+                # Handle both dict (direct from DB) and string (JSON)
+                specs = product.icecat_specifications_raw
+                if isinstance(specs, str):
+                    specs = json.loads(specs)
+                
                 for group_name, group_specs in specs.items():
                     for spec in group_specs:
                         lines.append((0, 0, {

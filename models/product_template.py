@@ -49,6 +49,60 @@ class ProductTemplate(models.Model):
         readonly=True,
         help='Data quality indicator from Icecat'
     )
+    icecat_specifications_raw = fields.Json(
+        string='Icecat Specifications Raw',
+        help='Raw specifications data from Icecat, stored as JSON'
+    )
+    icecat_specifications_grouped = fields.Html(
+        string='Gegroepeerde Specificaties',
+        compute='_compute_icecat_specifications_grouped',
+        help='Specificaties gegroepeerd per categorie, Tweakers-stijl'
+    )
+
+    @api.depends('icecat_specifications_raw')
+    def _compute_icecat_specifications_grouped(self):
+        """Genereer HTML-tabel per Icecat-categorie, zoals op Tweakers"""
+        from collections import defaultdict
+        
+        for product in self:
+            specs_html = ''
+            grouped_specs = defaultdict(list)
+            
+            # Parse JSON specs if they exist
+            if product.icecat_specifications_raw:
+                import json
+                specs_data = product.icecat_specifications_raw if isinstance(product.icecat_specifications_raw, dict) else json.loads(product.icecat_specifications_raw)
+                
+                for group, specs in specs_data.items():
+                    for spec in specs:
+                        grouped_specs[group].append({
+                            'name': spec.get('name', ''),
+                            'value': spec.get('value', ''),
+                            'unit': spec.get('unit', '')
+                        })
+            
+            # Build HTML: sections with tables
+            for group, specs in grouped_specs.items():
+                specs_html += f'''
+                    <div class="specs-section">
+                        <h4 class="specs-group-title">{group}</h4>
+                        <table class="table table-sm table-striped specs-table">
+                            <tbody>
+                '''
+                for spec in specs:
+                    specs_html += f'''
+                                <tr>
+                                    <td class="spec-key"><strong>{spec['name']}</strong></td>
+                                    <td class="spec-value">{spec['value']} {spec['unit']}</td>
+                                </tr>
+                    '''
+                specs_html += '''
+                            </tbody>
+                        </table>
+                    </div>
+                '''
+            
+            product.icecat_specifications_grouped = specs_html if specs_html else '<p>Geen specificaties beschikbaar.</p>'
 
     def action_sync_with_icecat(self):
         """Manual sync action for selected products"""
@@ -84,6 +138,18 @@ class ProductTemplate(models.Model):
                     'sticky': True,
                 }
             }
+
+    def action_open_spec_manager(self):
+        """Open the specification manager wizard"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Beheer Specificaties',
+            'res_model': 'spec.manager.wizard',
+            'view_mode': 'form',
+            'target': 'fullscreen',
+            'context': {'active_id': self.id},
+        }
 
     @api.model
     def cron_sync_new_products(self):
@@ -133,6 +199,9 @@ class ProductTemplate(models.Model):
         
         try:
             for product in products:
+                # Add product to processed list
+                log.write({'product_ids': [(4, product.id)]})
+                
                 try:
                     # Get barcode from first variant that has one
                     barcode = product.product_variant_ids.filtered(lambda v: v.barcode)[:1].barcode
@@ -146,12 +215,14 @@ class ProductTemplate(models.Model):
                         no_data_count += 1
                     else:
                         error_count += 1
+                        log.write({'error_product_ids': [(4, product.id)]})
                 except Exception as e:
                     error_count += 1
                     product.write({
                         'icecat_sync_status': 'error',
                         'icecat_error_message': str(e),
                     })
+                    log.write({'error_product_ids': [(4, product.id)]})
                 
                 # Update log after each product to survive timeouts
                 log.write({
@@ -161,12 +232,19 @@ class ProductTemplate(models.Model):
                 })
                 self.env.cr.commit()
             
-            # Mark as completed when all products are done
-            log.write({
-                'end_time': fields.Datetime.now(),
-                'status': 'completed',
-            })
-            self.env.cr.commit()
+            # Check if there are still products to sync
+            remaining_products = self.search_count([
+                ('product_variant_ids.barcode', '!=', False),
+                ('icecat_sync_status', 'in', ['not_synced', 'pending']),
+            ])
+            
+            # Mark as completed when NO more products need syncing
+            if remaining_products == 0:
+                log.write({
+                    'end_time': fields.Datetime.now(),
+                    'status': 'completed',
+                })
+                self.env.cr.commit()
         except Exception as e:
             log.write({
                 'end_time': fields.Datetime.now(),
@@ -236,6 +314,9 @@ class ProductTemplate(models.Model):
         
         try:
             for product in products:
+                # Add product to processed list
+                log.write({'product_ids': [(4, product.id)]})
+                
                 try:
                     # Get barcode from first variant that has one
                     barcode = product.product_variant_ids.filtered(lambda v: v.barcode)[:1].barcode
@@ -249,12 +330,14 @@ class ProductTemplate(models.Model):
                         no_data_count += 1
                     else:
                         error_count += 1
+                        log.write({'error_product_ids': [(4, product.id)]})
                 except Exception as e:
                     error_count += 1
                     product.write({
                         'icecat_sync_status': 'error',
                         'icecat_error_message': str(e),
                     })
+                    log.write({'error_product_ids': [(4, product.id)]})
                 
                 # Update log after each product to survive timeouts
                 log.write({
@@ -264,12 +347,23 @@ class ProductTemplate(models.Model):
                 })
                 self.env.cr.commit()
             
-            # Mark as completed when all products are done
-            log.write({
-                'end_time': fields.Datetime.now(),
-                'status': 'completed',
-            })
-            self.env.cr.commit()
+            # Check if there are still products to update
+            thirty_days_ago = fields.Datetime.now() - fields.timedelta(days=30)
+            remaining_products = self.search_count([
+                ('product_variant_ids.barcode', '!=', False),
+                ('icecat_sync_status', '=', 'synced'),
+                '|',
+                ('icecat_last_sync', '<', thirty_days_ago),
+                ('icecat_last_sync', '=', False),
+            ])
+            
+            # Mark as completed when NO more products need updating
+            if remaining_products == 0:
+                log.write({
+                    'end_time': fields.Datetime.now(),
+                    'status': 'completed',
+                })
+                self.env.cr.commit()
         except Exception as e:
             log.write({
                 'end_time': fields.Datetime.now(),

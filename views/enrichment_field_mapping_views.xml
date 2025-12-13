@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Field Mapping Tree View -->
+        <record id="enrichment_field_mapping_tree_view" model="ir.ui.view">
+            <field name="name">enrichment.field.mapping.tree</field>
+            <field name="model">enrichment.field.mapping</field>
+            <field name="arch" type="xml">
+                <list string="Veld Mapping">
+                    <field name="sequence" widget="handle"/>
+                    <field name="field_name"/>
+                    <field name="allow_barcodelookup" widget="boolean_toggle"/>
+                    <field name="allow_icecat" widget="boolean_toggle"/>
+                    <field name="allow_overwrite" widget="boolean_toggle"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Field Mapping Form View -->
+        <record id="enrichment_field_mapping_form_view" model="ir.ui.view">
+            <field name="name">enrichment.field.mapping.form</field>
+            <field name="model">enrichment.field.mapping</field>
+            <field name="arch" type="xml">
+                <form string="Veld Mapping Configuratie">
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="sequence"/>
+                                <field name="field_name"/>
+                            </group>
+                            <group>
+                                <field name="allow_barcodelookup" widget="boolean_toggle"/>
+                                <field name="allow_icecat" widget="boolean_toggle"/>
+                                <field name="allow_overwrite" widget="boolean_toggle"/>
+                            </group>
+                        </group>
+                        <group>
+                            <field name="notes" placeholder="Notities over deze veld mapping..."/>
+                        </group>
+                        <div class="alert alert-info mt-3" role="alert">
+                            <strong>Uitleg:</strong>
+                            <ul class="mb-0">
+                                <li><strong>BarcodeLookup/Icecat Toestaan:</strong> Welke bronnen dit veld mogen vullen</li>
+                                <li><strong>Overschrijven Toestaan:</strong> Mag een bron een reeds gevuld veld overschrijven?</li>
+                                <li>Lege velden worden altijd gevuld (ongeacht overwrite setting)</li>
+                                <li>Als meerdere bronnen toegestaan zijn, bepaalt de bron prioriteit wie eerst mag</li>
+                            </ul>
+                        </div>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Field Mapping Action -->
+        <record id="action_enrichment_field_mapping" model="ir.actions.act_window">
+            <field name="name">Veld Mapping</field>
+            <field name="res_model">enrichment.field.mapping</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <!-- Menu Item -->
+        <menuitem id="menu_enrichment_field_mapping"
+                  name="Veld Mapping"
+                  parent="menu_enrichment_root"
+                  action="action_enrichment_field_mapping"
+                  sequence="20"/>
+
+    </data>
+</odoo>

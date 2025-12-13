@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Inherit Website Settings to add Product Enrichment section -->
+        <record id="res_config_settings_view_form" model="ir.ui.view">
+            <field name="name">res.config.settings.view.form.inherit.product.enrichment</field>
+            <field name="model">res.config.settings</field>
+            <field name="inherit_id" ref="website.res_config_settings_view_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//div[hasclass('settings')]" position="inside">
+                    <div class="app_settings_block" data-string="Product Verrijking" string="Product Verrijking" data-key="product_content_verrijking">
+                        <h2>Product Content Verrijking</h2>
+                        
+                        <!-- General Settings -->
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="auto_enrich_enabled"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="auto_enrich_enabled"/>
+                                    <div class="text-muted">
+                                        Schakel automatische product verrijking in via cron jobs
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="source_priority" class="o_form_label"/>
+                                    <div class="text-muted">
+                                        Bepaal de volgorde waarin data bronnen gebruikt worden
+                                    </div>
+                                    <div class="content-group mt16">
+                                        <field name="source_priority" class="o_light_label" widget="radio"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- BarcodeLookup Settings -->
+                        <h3 class="mt32">BarcodeLookup.com Configuratie</h3>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="barcodelookup_enabled"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="barcodelookup_enabled"/>
+                                    <div class="text-muted">
+                                        Gebruik BarcodeLookup.com API (gratis tier beschikbaar)
+                                    </div>
+                                    <div class="content-group mt16" invisible="not barcodelookup_enabled">
+                                        <div class="row">
+                                            <label for="barcodelookup_api_key" class="col-lg-3 o_form_label"/>
+                                            <field name="barcodelookup_api_key" password="True" class="oe_inline"/>
+                                        </div>
+                                        <div class="mt8">
+                                            <button name="action_test_barcodelookup_connection" 
+                                                    string="Test Connectie" 
+                                                    type="object" 
+                                                    class="btn-link" 
+                                                    icon="fa-plug"/>
+                                            <span class="text-muted"> | </span>
+                                            <a href="https://www.barcodelookup.com/api" target="_blank" class="btn-link">
+                                                <i class="fa fa-external-link"/> API Key aanvragen
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Icecat Settings -->
+                        <h3 class="mt32">Icecat Configuratie</h3>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_enabled"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_enabled"/>
+                                    <div class="text-muted">
+                                        Gebruik Icecat API voor product verrijking
+                                    </div>
+                                    <div class="content-group mt16" invisible="not icecat_enabled">
+                                        <div class="row">
+                                            <label for="icecat_username" class="col-lg-3 o_form_label"/>
+                                            <field name="icecat_username" class="oe_inline"/>
+                                        </div>
+                                        <div class="row mt8">
+                                            <label for="icecat_password" class="col-lg-3 o_form_label"/>
+                                            <field name="icecat_password" password="True" class="oe_inline"/>
+                                        </div>
+                                        <div class="row mt8">
+                                            <label for="icecat_catalog_type" class="col-lg-3 o_form_label"/>
+                                            <field name="icecat_catalog_type" class="oe_inline" widget="radio"/>
+                                        </div>
+                                        <div class="mt8">
+                                            <button name="action_test_icecat_open_connection"
+                                                    string="Test Open Catalog"
+                                                    type="object"
+                                                    class="btn-link"
+                                                    icon="fa-plug"/>
+                                            <span class="text-muted"> | </span>
+                                            <button name="action_test_icecat_full_connection"
+                                                    string="Test Full Catalog"
+                                                    type="object"
+                                                    class="btn-link"
+                                                    icon="fa-plug"
+                                                    invisible="icecat_catalog_type == 'open'"/>
+                                            <span class="text-muted" invisible="icecat_catalog_type == 'open'"> | </span>
+                                            <a href="https://icecat.biz/en/menu/register/index.html" target="_blank" class="btn-link">
+                                                <i class="fa fa-external-link"/> Icecat Account aanmaken
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Advanced Settings -->
+                        <h3 class="mt32">Geavanceerde Instellingen</h3>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="new_product_batch_size" class="o_form_label"/>
+                                    <div class="text-muted">
+                                        Aantal nieuwe producten per batch (overdag)
+                                    </div>
+                                    <div class="content-group mt8">
+                                        <field name="new_product_batch_size" class="oe_inline"/>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="update_batch_size" class="o_form_label"/>
+                                    <div class="text-muted">
+                                        Aantal producten per update batch (s'nachts)
+                                    </div>
+                                    <div class="content-group mt8">
+                                        <field name="update_batch_size" class="oe_inline"/>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <button name="action_open_field_mapping" 
+                                            string="Veld Mapping Configureren" 
+                                            type="object" 
+                                            class="btn-link" 
+                                            icon="fa-wrench"/>
+                                    <div class="text-muted">
+                                        Configureer welke bronnen welke velden mogen vullen/overschrijven
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <button name="action_open_sync_logs" 
+                                            string="Bekijk Sync Logs" 
+                                            type="object" 
+                                            class="btn-link" 
+                                            icon="fa-list"/>
+                                    <div class="text-muted">
+                                        Bekijk de geschiedenis van verrijkings acties
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>
