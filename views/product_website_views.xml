@@ -2,69 +2,57 @@
 <odoo>
     <data>
 
-        <!-- Add collapsible specifications to product page -->
-        <template id="product_specifications_collapsible" inherit_id="website_sale.product" name="Icecat Specifications">
+        <!-- Toon Icecat specificaties onder de beschrijving -->
+        <template id="icecat_product_specifications" inherit_id="website_sale.product" priority="40">
             <xpath expr="//div[@id='product_details']" position="after">
-                <t t-if="product.website_description or product.icecat_highlights_html">
-                    <div id="icecat-specs" class="container mt-4 mb-4">
-                        <t t-if="product.icecat_highlights_html">
-                            <t t-raw="product.icecat_highlights_html"/>
-                        </t>
-
-                        <t t-if="product.website_description">
-                            <div class="d-flex align-items-center justify-content-between mt-4">
-                                <h3 class="mb-0">Specificaties</h3>
-                                <input id="specSearchInput" class="form-control ms-3" style="max-width: 320px;" type="search" placeholder="Zoek in specificaties…" aria-label="Zoek in specificaties"/>
-                            </div>
-                            <div class="mt-3">
-                                <t t-raw="product.website_description"/>
-                            </div>
-                        </t>
+                <div t-if="product.icecat_specifications_grouped" class="mt-5">
+                    <h3 class="mb-4">Technische specificaties</h3>
+                    <div id="icecat-accordion" class="accordion">
+                        <t t-raw="product.icecat_specifications_grouped"/>
                     </div>
 
-                    <!-- Lightweight client-side filter for spec tables -->
+                    <style>
+                        #icecat-accordion .accordion-item { border: 1px solid #dee2e6; border-radius: .5rem; margin-bottom: 1rem; overflow: hidden; }
+                        #icecat-accordion .accordion-button { background: linear-gradient(135deg, #007bff, #0056b3); color: white; font-weight: 600; }
+                        #icecat-accordion .accordion-button:not(.collapsed) { background: #0056b3; }
+                        #icecat-accordion table { margin: 0; }
+                        #icecat-accordion td { padding: 10px 15px; border-bottom: 1px solid #f8f9fa; }
+                        #icecat-accordion td:first-child { background: #f8f9fa; font-weight: 600; width: 40%; }
+                    </style>
+
                     <script>
-                        (function () {
-                            function normalize(t) { return (t || '').toString().toLowerCase(); }
-                            function filterSpecs(q) {
-                                var query = normalize(q);
-                                var container = document.getElementById('icecat-specs');
-                                if (!container) return;
-                                var accordions = container.querySelectorAll('.accordion');
-                                accordions.forEach(function(acc) {
-                                    var items = acc.querySelectorAll('.accordion-item');
-                                    items.forEach(function(item) {
-                                        var rows = item.querySelectorAll('tbody tr');
-                                        var anyMatch = false;
-                                        rows.forEach(function(row) {
-                                            var txt = normalize(row.textContent);
-                                            var match = !query || txt.indexOf(query) !== -1;
-                                            row.style.display = match ? '' : 'none';
-                                            anyMatch = anyMatch || match;
-                                        });
-                                        var collapse = item.querySelector('.accordion-collapse');
-                                        var btn = item.querySelector('.accordion-button');
-                                        if (collapse && btn) {
-                                            if (anyMatch && !collapse.classList.contains('show')) {
-                                                collapse.classList.add('show');
-                                                btn.classList.remove('collapsed');
-                                            } else if (!anyMatch && collapse.classList.contains('show') && query) {
-                                                collapse.classList.remove('show');
-                                                btn.classList.add('collapsed');
-                                            }
-                                        }
-                                        item.style.display = anyMatch || !query ? '' : 'none';
-                                    });
-                                });
-                            }
-                            document.addEventListener('DOMContentLoaded', function() {
-                                var input = document.getElementById('specSearchInput');
-                                if (!input) return;
-                                input.addEventListener('input', function(e) { filterSpecs(e.target.value); });
+                        document.addEventListener('DOMContentLoaded', function () {
+                            const sections = document.querySelectorAll('#icecat-accordion > div');
+                            const accordion = document.getElementById('icecat-accordion');
+                            if (!accordion || sections.length === 0) return;
+                            
+                            accordion.innerHTML = '';
+
+                            sections.forEach((section, i) => {
+                                const title = section.querySelector('h3, h4, strong')?.textContent.trim() || 'Specificaties';
+                                const table = section.querySelector('table') || section;
+
+                                const item = document.createElement('div');
+                                item.className = 'accordion-item';
+
+                                item.innerHTML = `
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#icecat-collapse-${i}">
+                                            ${title}
+                                        </button>
+                                    </h2>
+                                    <div id="icecat-collapse-${i}" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            ${table.outerHTML || table.innerHTML}
+                                        </div>
+                                    </div>
+                                `;
+                                accordion.appendChild(item);
                             });
-                        })();
+                        });
                     </script>
-                </t>
+                </div>
             </xpath>
         </template>
 

@@ -174,6 +174,47 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <h2>Scheduled Jobs (Cron)</h2>
+                        <div class="row mt16 o_settings_container">
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_cron_new_products_active"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_cron_new_products_active" string="New Products Sync"/>
+                                    <div class="text-muted">
+                                        Automatically sync new products on a schedule
+                                    </div>
+                                    <div class="content-group" invisible="not icecat_cron_new_products_active">
+                                        <div class="row mt16">
+                                            <label for="icecat_cron_new_products_interval" string="Run every" class="col-lg-3 o_light_label"/>
+                                            <field name="icecat_cron_new_products_interval" class="oe_inline col-lg-2"/>
+                                            <field name="icecat_cron_new_products_interval_type" class="oe_inline col-lg-4"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_cron_update_products_active"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_cron_update_products_active" string="Products Update"/>
+                                    <div class="text-muted">
+                                        Automatically update existing products on a schedule
+                                    </div>
+                                    <div class="content-group" invisible="not icecat_cron_update_products_active">
+                                        <div class="row mt16">
+                                            <label for="icecat_cron_update_products_interval" string="Run every" class="col-lg-3 o_light_label"/>
+                                            <field name="icecat_cron_update_products_interval" class="oe_inline col-lg-2"/>
+                                            <field name="icecat_cron_update_products_interval_type" class="oe_inline col-lg-4"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </xpath>
             </field>

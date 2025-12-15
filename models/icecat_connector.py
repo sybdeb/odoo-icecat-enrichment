@@ -444,6 +444,45 @@ class IcecatConnector(models.AbstractModel):
                     if not image_data:
                         continue
 
+                    # Optimize image size for webshop (max 2000x2000px)
+                    try:
+                        import io
+                        from PIL import Image
+                        img = Image.open(io.BytesIO(base64.b64decode(image_data)))
+                        width, height = img.size
+                        
+                        # Maximum dimension for webshop images
+                        MAX_DIMENSION = 2000
+                        
+                        if width > MAX_DIMENSION or height > MAX_DIMENSION:
+                            _logger.info(f"Resizing image from {width}x{height} to max {MAX_DIMENSION}px")
+                            
+                            # Calculate new dimensions maintaining aspect ratio
+                            if width > height:
+                                new_width = MAX_DIMENSION
+                                new_height = int(height * (MAX_DIMENSION / width))
+                            else:
+                                new_height = MAX_DIMENSION
+                                new_width = int(width * (MAX_DIMENSION / height))
+                            
+                            # Convert to RGB if needed (some formats like CMYK cause issues)
+                            if img.mode not in ('RGB', 'L'):
+                                img = img.convert('RGB')
+                            
+                            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                            
+                            # Save optimized image
+                            buffer = io.BytesIO()
+                            img.save(buffer, format='JPEG', quality=85, optimize=True)
+                            image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                            _logger.info(f"Resized to {new_width}x{new_height} (quality: 85)")
+                        else:
+                            _logger.info(f"Image size OK: {width}x{height}")
+                    except Exception as e:
+                        _logger.warning(f"Could not optimize image: {e}. Skipping this image.")
+                        # Skip this image if resize fails
+                        continue
+
                     if idx == 0:
                         # Main image
                         update_vals['image_1920'] = image_data
@@ -462,7 +501,7 @@ class IcecatConnector(models.AbstractModel):
         # Write updates to product
         product.write(update_vals)
         
-        # Always store raw specifications for grouped display
+        # Store raw specifications for management
         if product_info.get('specifications'):
             product.write({'icecat_specifications_raw': product_info['specifications']})
         

@@ -53,6 +53,33 @@
                         <group string="Error Message" invisible="not error_message">
                             <field name="error_message" nolabel="1"/>
                         </group>
+                        <notebook>
+                            <page string="Verwerkte Producten" name="processed_products">
+                                <field name="product_ids" nolabel="1">
+                                    <list>
+                                        <field name="default_code"/>
+                                        <field name="name"/>
+                                        <field name="icecat_sync_status" widget="badge"
+                                               decoration-success="icecat_sync_status == 'synced'"
+                                               decoration-danger="icecat_sync_status == 'error'"
+                                               decoration-warning="icecat_sync_status == 'no_data'"/>
+                                        <field name="icecat_last_sync"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Producten met Errors" name="error_products" invisible="error_count == 0">
+                                <field name="error_product_ids" nolabel="1">
+                                    <list>
+                                        <field name="default_code"/>
+                                        <field name="name"/>
+                                        <field name="icecat_sync_status" widget="badge"
+                                               decoration-danger="icecat_sync_status == 'error'"/>
+                                        <field name="icecat_error_message"/>
+                                        <field name="icecat_last_sync"/>
+                                    </list>
+                                </field>
+                            </page>
+                        </notebook>
                     </sheet>
                 </form>
             </field>

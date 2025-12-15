@@ -5,3 +5,7 @@ access_icecat_sync_log_user,icecat.sync.log user,model_icecat_sync_log,base.grou
 access_icecat_sync_log_manager,icecat.sync.log manager,model_icecat_sync_log,base.group_system,1,1,1,1
 access_icecat_category_mapping_user,icecat.category.mapping user,model_icecat_category_mapping,base.group_user,1,0,0,0
 access_icecat_category_mapping_manager,icecat.category.mapping manager,model_icecat_category_mapping,base.group_system,1,1,1,1
+access_spec_manager_wizard_user,spec.manager.wizard user,model_spec_manager_wizard,base.group_user,1,1,1,1
+access_spec_manager_wizard_manager,spec.manager.wizard manager,model_spec_manager_wizard,base.group_system,1,1,1,1
+access_spec_manager_line_user,spec.manager.line user,model_spec_manager_line,base.group_user,1,1,1,1
+access_spec_manager_line_manager,spec.manager.line manager,model_spec_manager_line,base.group_system,1,1,1,1

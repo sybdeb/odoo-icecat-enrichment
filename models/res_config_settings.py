@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class ResConfigSettings(models.TransientModel):
@@ -67,3 +67,86 @@ class ResConfigSettings(models.TransientModel):
         config_parameter='product_content_verrijking.sync_attributes',
         help='Create Odoo product attributes from Icecat specifications (can create many attributes!)'
     )
+    
+    # Cron Job Settings
+    icecat_cron_new_products_active = fields.Boolean(
+        string='Enable New Products Sync',
+        help='Enable automatic syncing of new products'
+    )
+    icecat_cron_new_products_interval = fields.Integer(
+        string='New Products Interval',
+        default=1,
+        help='How often to sync new products'
+    )
+    icecat_cron_new_products_interval_type = fields.Selection([
+        ('minutes', 'Minutes'),
+        ('hours', 'Hours'),
+        ('days', 'Days'),
+    ], string='Interval Type',
+        default='hours',
+        help='Interval type for new products sync'
+    )
+    
+    icecat_cron_update_products_active = fields.Boolean(
+        string='Enable Products Update',
+        help='Enable automatic updating of existing products'
+    )
+    icecat_cron_update_products_interval = fields.Integer(
+        string='Update Products Interval',
+        default=1,
+        help='How often to update existing products'
+    )
+    icecat_cron_update_products_interval_type = fields.Selection([
+        ('minutes', 'Minutes'),
+        ('hours', 'Hours'),
+        ('days', 'Days'),
+    ], string='Update Interval Type',
+        default='days',
+        help='Interval type for products update'
+    )
+    
+    @api.model
+    def get_values(self):
+        res = super(ResConfigSettings, self).get_values()
+        
+        # Get cron records
+        cron_new = self.env.ref('product_content_verrijking.ir_cron_sync_new_products', raise_if_not_found=False)
+        cron_update = self.env.ref('product_content_verrijking.ir_cron_update_products', raise_if_not_found=False)
+        
+        if cron_new:
+            res.update({
+                'icecat_cron_new_products_active': cron_new.active,
+                'icecat_cron_new_products_interval': cron_new.interval_number,
+                'icecat_cron_new_products_interval_type': cron_new.interval_type,
+            })
+        
+        if cron_update:
+            res.update({
+                'icecat_cron_update_products_active': cron_update.active,
+                'icecat_cron_update_products_interval': cron_update.interval_number,
+                'icecat_cron_update_products_interval_type': cron_update.interval_type,
+            })
+        
+        return res
+    
+    def set_values(self):
+        super(ResConfigSettings, self).set_values()
+        
+        # Update cron records
+        cron_new = self.env.ref('product_content_verrijking.ir_cron_sync_new_products', raise_if_not_found=False)
+        cron_update = self.env.ref('product_content_verrijking.ir_cron_update_products', raise_if_not_found=False)
+        
+        if cron_new:
+            cron_new.write({
+                'active': self.icecat_cron_new_products_active,
+                'interval_number': self.icecat_cron_new_products_interval,
+                'interval_type': self.icecat_cron_new_products_interval_type,
+            })
+        
+        if cron_update:
+            cron_update.write({
+                'active': self.icecat_cron_update_products_active,
+                'interval_number': self.icecat_cron_update_products_interval,
+                'interval_type': self.icecat_cron_update_products_interval_type,
+            })
+

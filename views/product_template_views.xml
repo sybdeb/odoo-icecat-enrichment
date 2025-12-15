@@ -18,6 +18,13 @@
                             icon="fa-refresh"
                             invisible="not barcode"
                             help="Synchronize this product with Icecat database"/>
+                    <button name="%(product_content_verrijking.action_spec_manager_wizard)d"
+                            type="action"
+                            string="Beheer Specs"
+                            class="oe_stat_button"
+                            icon="fa-list"
+                            invisible="not icecat_specifications_raw"
+                            help="Beheer product specificaties"/>
                 </xpath>
                 
                 <!-- Add Icecat tab -->

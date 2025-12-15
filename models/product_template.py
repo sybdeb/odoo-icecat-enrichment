@@ -47,48 +47,84 @@ class ProductTemplate(models.Model):
     icecat_specifications_grouped = fields.Html(
         string='Gegroepeerde Specificaties',
         compute='_compute_icecat_specifications_grouped',
-        help='Specificaties gegroepeerd per categorie, Tweakers-stijl'
+        store=False,
+        help='Specificaties gegroepeerd per categorie voor website accordion'
+    )
+
+    icecat_highlights_html = fields.Html(
+        string='Icecat Highlights',
+        help='Product highlights/features from Icecat in HTML format'
     )
 
     @api.depends('icecat_specifications_raw')
     def _compute_icecat_specifications_grouped(self):
-        """Genereer HTML-tabel per Icecat-categorie, zoals op Tweakers"""
+        """Genereer HTML voor accordion per Icecat-categorie"""
         for product in self:
+            if not product.icecat_specifications_raw:
+                product.icecat_specifications_grouped = False
+                continue
+
             specs_html = ''
-            grouped_specs = defaultdict(list)
-            
-            # Gebruik raw specifications data in plaats van attributes
-            if product.icecat_specifications_raw:
-                for spec in product.icecat_specifications_raw:
-                    group = spec.get('group', 'Algemeen')
-                    grouped_specs[group].append({
-                        'name': spec.get('name', ''),
-                        'value': spec.get('value', ''),
-                        'unit': spec.get('unit', '')
-                    })
-            
-            # Bouw HTML: secties met tabel, zoals Tweakers
-            for group, specs in grouped_specs.items():
-                specs_html += f'''
-                    <div class="specs-section">
-                        <h4 class="specs-group-title">{group}</h4>
-                        <table class="table table-sm table-striped specs-table">
-                            <tbody>
-                '''
-                for spec in specs:
+            specs_data = product.icecat_specifications_raw
+
+            # Handle both dict (grouped) and list (flat) formats
+            if isinstance(specs_data, dict):
+                # Already grouped format
+                for group_name, specs_list in specs_data.items():
                     specs_html += f'''
-                                <tr>
-                                    <td class="spec-key"><strong>{spec['name']}</strong></td>
-                                    <td class="spec-value">{spec['value']} {spec['unit']}</td>
-                                </tr>
+                        <div class="specs-section">
+                            <h4 class="specs-group-title">{group_name}</h4>
+                            <table class="table table-sm table-striped specs-table">
+                                <tbody>
                     '''
-                specs_html += '''
-                            </tbody>
-                        </table>
-                    </div>
-                '''
-            
-            product.icecat_specifications_grouped = specs_html if specs_html else '<p>Geen specificaties beschikbaar.</p>'
+                    for spec in specs_list:
+                        name = spec.get('name', '')
+                        value = spec.get('value', '')
+                        unit = spec.get('unit', '')
+                        value_with_unit = f"{value} {unit}".strip() if unit else value
+                        specs_html += f'''
+                                    <tr>
+                                        <td class="spec-key"><strong>{name}</strong></td>
+                                        <td class="spec-value">{value_with_unit}</td>
+                                    </tr>
+                        '''
+                    specs_html += '''
+                                </tbody>
+                            </table>
+                        </div>
+                    '''
+            elif isinstance(specs_data, list):
+                # Flat list - group by 'group' field
+                grouped_specs = defaultdict(list)
+                for spec in specs_data:
+                    group = spec.get('group', 'Algemeen')
+                    grouped_specs[group].append(spec)
+
+                for group_name, specs_list in grouped_specs.items():
+                    specs_html += f'''
+                        <div class="specs-section">
+                            <h4 class="specs-group-title">{group_name}</h4>
+                            <table class="table table-sm table-striped specs-table">
+                                <tbody>
+                    '''
+                    for spec in specs_list:
+                        name = spec.get('name', '')
+                        value = spec.get('value', '')
+                        unit = spec.get('unit', '')
+                        value_with_unit = f"{value} {unit}".strip() if unit else value
+                        specs_html += f'''
+                                    <tr>
+                                        <td class="spec-key"><strong>{name}</strong></td>
+                                        <td class="spec-value">{value_with_unit}</td>
+                                    </tr>
+                        '''
+                    specs_html += '''
+                                </tbody>
+                            </table>
+                        </div>
+                    '''
+
+            product.icecat_specifications_grouped = specs_html if specs_html else False
 
     def action_sync_with_icecat(self):
         """Manual sync action for selected products"""
@@ -149,12 +185,24 @@ class ProductTemplate(models.Model):
         if not products:
             return
         
-        # Create log entry
+        # Close any old running logs for this type (they timed out or crashed)
+        old_running_logs = self.env['icecat.sync.log'].search([
+            ('sync_type', '=', 'new'),
+            ('status', '=', 'running'),
+        ])
+        for old_log in old_running_logs:
+            old_log.write({
+                'end_time': fields.Datetime.now(),
+                'status': 'completed',
+            })
+        
+        # Create new log entry with immediate commit
         log = self.env['icecat.sync.log'].create({
             'sync_type': 'new',
             'total_products': len(products),
             'status': 'running',
         })
+        self.env.cr.commit()  # Commit log immediately so it's visible even if cron times out
         
         synced_count = 0
         error_count = 0
@@ -163,6 +211,9 @@ class ProductTemplate(models.Model):
         try:
             for product in products:
                 try:
+                    # Track this product in the log
+                    log.write({'product_ids': [(4, product.id)]})
+                    
                     # Get barcode from first variant that has one
                     barcode = product.product_variant_ids.filtered(lambda v: v.barcode)[:1].barcode
                     if not barcode:
@@ -175,12 +226,18 @@ class ProductTemplate(models.Model):
                         no_data_count += 1
                     else:
                         error_count += 1
+                        log.write({'error_product_ids': [(4, product.id)]})
+                    
+                    # Commit after each product to save progress
+                    self.env.cr.commit()
                 except Exception as e:
                     error_count += 1
+                    log.write({'error_product_ids': [(4, product.id)]})
                     product.write({
                         'icecat_sync_status': 'error',
                         'icecat_error_message': str(e),
                     })
+                    self.env.cr.commit()
             
             # Update log
             log.write({
@@ -190,12 +247,17 @@ class ProductTemplate(models.Model):
                 'no_data_count': no_data_count,
                 'status': 'completed',
             })
+            self.env.cr.commit()
         except Exception as e:
             log.write({
                 'end_time': fields.Datetime.now(),
+                'synced_count': synced_count,
+                'error_count': error_count,
+                'no_data_count': no_data_count,
                 'status': 'failed',
                 'error_message': str(e),
             })
+            self.env.cr.commit()
             raise
         
         return {
@@ -234,12 +296,24 @@ class ProductTemplate(models.Model):
         if not products:
             return
         
-        # Create log entry
+        # Close any old running logs for this type (they timed out or crashed)
+        old_running_logs = self.env['icecat.sync.log'].search([
+            ('sync_type', '=', 'update'),
+            ('status', '=', 'running'),
+        ])
+        for old_log in old_running_logs:
+            old_log.write({
+                'end_time': fields.Datetime.now(),
+                'status': 'completed',
+            })
+        
+        # Create new log entry with immediate commit
         log = self.env['icecat.sync.log'].create({
             'sync_type': 'update',
             'total_products': len(products),
             'status': 'running',
         })
+        self.env.cr.commit()  # Commit log immediately so it's visible even if cron times out
         
         synced_count = 0
         error_count = 0
@@ -248,6 +322,9 @@ class ProductTemplate(models.Model):
         try:
             for product in products:
                 try:
+                    # Track this product in the log
+                    log.write({'product_ids': [(4, product.id)]})
+                    
                     # Get barcode from first variant that has one
                     barcode = product.product_variant_ids.filtered(lambda v: v.barcode)[:1].barcode
                     if not barcode:
@@ -260,12 +337,18 @@ class ProductTemplate(models.Model):
                         no_data_count += 1
                     else:
                         error_count += 1
+                        log.write({'error_product_ids': [(4, product.id)]})
+                    
+                    # Commit after each product to save progress
+                    self.env.cr.commit()
                 except Exception as e:
                     error_count += 1
+                    log.write({'error_product_ids': [(4, product.id)]})
                     product.write({
                         'icecat_sync_status': 'error',
                         'icecat_error_message': str(e),
                     })
+                    self.env.cr.commit()
             
             # Update log
             log.write({
@@ -275,12 +358,17 @@ class ProductTemplate(models.Model):
                 'no_data_count': no_data_count,
                 'status': 'completed',
             })
+            self.env.cr.commit()
         except Exception as e:
             log.write({
                 'end_time': fields.Datetime.now(),
+                'synced_count': synced_count,
+                'error_count': error_count,
+                'no_data_count': no_data_count,
                 'status': 'failed',
                 'error_message': str(e),
             })
+            self.env.cr.commit()
             raise
         
         return {
