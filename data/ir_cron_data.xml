@@ -10,7 +10,7 @@
             <field name="code">model.cron_sync_new_products()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">hours</field>
-            <field name="active">True</field>
+            <field name="active" eval="False"/>
             <field name="priority">5</field>
         </record>
 
@@ -22,7 +22,7 @@
             <field name="code">model.cron_update_products()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="active">True</field>
+            <field name="active" eval="False"/>
             <field name="priority">10</field>
             <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).replace(hour=2, minute=0, second=0)"/>
         </record>

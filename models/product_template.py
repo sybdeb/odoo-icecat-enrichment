@@ -153,7 +153,17 @@ class ProductTemplate(models.Model):
 
     @api.model
     def cron_sync_new_products(self):
-        """Scheduled action to sync new products in small batches"""
+        """Scheduled action to sync new products in small batches (PRO FEATURE)"""
+        # Check if Pro version is installed
+        is_pro_installed = self.env['ir.module.module'].search([
+            ('name', '=', 'icecat_enrichment_pro_unlock'),
+            ('state', '=', 'installed')
+        ], limit=1)
+        
+        if not is_pro_installed:
+            _logger.info('Icecat automatic sync disabled - requires Pro version')
+            return
+        
         IceCatConnector = self.env['icecat.connector']
         
         # Check if auto sync is enabled
@@ -263,7 +273,17 @@ class ProductTemplate(models.Model):
 
     @api.model
     def cron_update_products(self):
-        """Scheduled action to update existing synced products (night run)"""
+        """Scheduled action to update existing synced products (night run) (PRO FEATURE)"""
+        # Check if Pro version is installed
+        is_pro_installed = self.env['ir.module.module'].search([
+            ('name', '=', 'icecat_enrichment_pro_unlock'),
+            ('state', '=', 'installed')
+        ], limit=1)
+        
+        if not is_pro_installed:
+            _logger.info('Icecat automatic updates disabled - requires Pro version')
+            return
+        
         IceCatConnector = self.env['icecat.connector']
         
         # Check if auto sync is enabled
