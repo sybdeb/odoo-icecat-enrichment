@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 # Configuration
 FREE_MODULE="icecat_product_enrichment"
 PRO_MODULE="icecat_enrichment_pro_unlock"
-SERVER="sybren@nerbys-main"
+SERVER="sybren@hetzner-sybren"
 ADDONS_PATH="/home/sybren/services/odoo19-prod/data/addons"
 UPGRADE_SCRIPT="/home/sybren/scripts/upgrade_module.py"
 
