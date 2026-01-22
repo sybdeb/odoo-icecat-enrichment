@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Icecat Product Enrichment',
-    'version': '18.0.1.0.0',
+    'version': '19.0.1.0.0',
     'category': 'Sales/Product',
     'summary': 'Enrich products with Icecat data based on EAN/GTIN',
     'description': """
@@ -30,7 +30,6 @@ Batch Processing:
         'base',
         'product',
         'website_sale',
-        'product_google_category',
     ],
     'data': [
         'security/ir.model.access.csv',
@@ -39,8 +38,9 @@ Batch Processing:
         'views/product_template_views.xml',
         'views/icecat_sync_log_views.xml',
         'views/icecat_category_mapping_views.xml',
-        'views/website_product_specifications.xml',
+        'views/product_website_views.xml',
         'wizards/icecat_sync_wizard_views.xml',
+        'wizards/spec_manager_wizard_views.xml',
     ],
     'external_dependencies': {
         'python': ['requests'],

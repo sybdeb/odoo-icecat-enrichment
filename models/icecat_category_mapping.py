@@ -23,12 +23,6 @@ class IcecatCategoryMapping(models.Model):
         string='Internal Category',
         help='Odoo internal product category'
     )
-    google_category_id = fields.Many2one(
-        'product.google.category',
-        string='Google Shopping Category',
-        help='Google Shopping product category',
-        ondelete='set null'
-    )
     auto_publish = fields.Boolean(
         string='Auto Publish to Website',
         default=True,
@@ -117,21 +111,6 @@ class IcecatCategoryMapping(models.Model):
         vals = {}
         
         # If Google category is set, create hierarchies automatically
-        if mapping.google_category_id:
-            google_cat_name = mapping.google_category_id.name
-            
-            # Create website category hierarchy if not manually set
-            if not mapping.odoo_category_id:
-                website_cat = self._create_category_hierarchy(google_cat_name, 'product.public.category')
-                if website_cat:
-                    mapping.write({'odoo_category_id': website_cat.id})
-            
-            # Create internal category hierarchy if not manually set
-            if not mapping.internal_category_id:
-                # For internal categories, we might want to prepend "All" as root
-                internal_cat = self._create_category_hierarchy(google_cat_name, 'product.category')
-                if internal_cat:
-                    mapping.write({'internal_category_id': internal_cat.id})
         
         # Set website category
         if mapping.odoo_category_id:
@@ -141,9 +120,6 @@ class IcecatCategoryMapping(models.Model):
         if mapping.internal_category_id:
             vals['categ_id'] = mapping.internal_category_id.id
         
-        # Set Google category (only if the field exists on product.template)
-        if mapping.google_category_id and hasattr(product, 'google_category_id'):
-            vals['google_category_id'] = mapping.google_category_id.id
         
         # Set website published
         if mapping.auto_publish:

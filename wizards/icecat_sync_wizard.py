@@ -57,6 +57,27 @@ class IcecatSyncWizard(models.TransientModel):
         """Execute the bulk sync"""
         self.ensure_one()
         
+        # Check if Pro version is required for this operation
+        if self.sync_type != 'selected':
+            is_pro_installed = self.env['ir.module.module'].search([
+                ('name', '=', 'icecat_enrichment_pro_unlock'),
+                ('state', '=', 'installed')
+            ], limit=1)
+            
+            if not is_pro_installed:
+                raise UserError(
+                    'Bulk sync operations require Icecat Pro.\n\n'
+                    'FREE version: Manual sync of selected products only\n'
+                    'PRO version unlocks:\n'
+                    '  ✓ Automatic scheduled syncs (every 4 hours + nightly updates)\n'
+                    '  ✓ Bulk sync all products not yet synced\n'
+                    '  ✓ Bulk retry all products with errors\n'
+                    '  ✓ Bulk update all outdated products\n'
+                    '  ✓ Dashboard statistics\n\n'
+                    'Upgrade to Pro: €199 one-time purchase\n'
+                    'Contact: support@nerbys.nl'
+                )
+        
         # Get products to sync
         domain = self._get_product_domain()
         products = self.env['product.template'].search(domain, limit=self.batch_size)

@@ -27,6 +27,8 @@ class IcecatSyncLog(models.Model):
         ('failed', 'Failed'),
     ], string='Status', default='running')
     error_message = fields.Text(string='Error Message')
+    product_ids = fields.Many2many('product.template', string='Products', help='Products processed in this sync run')
+    error_product_ids = fields.Many2many('product.template', 'icecat_sync_log_error_rel', 'log_id', 'product_id', string='Products with Errors', help='Products that had errors during sync')
 
     @api.depends('start_time', 'sync_type')
     def _compute_name(self):

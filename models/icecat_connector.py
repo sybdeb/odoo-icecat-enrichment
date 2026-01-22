@@ -19,7 +19,7 @@ class IcecatConnector(models.AbstractModel):
     def _get_config_param(self, param_name, default=None):
         """Helper to get configuration parameters"""
         return self.env['ir.config_parameter'].sudo().get_param(
-            f'icecat_product_enrichment.{param_name}',
+            f'product_content_verrijking.{param_name}',
             default=default
         )
 
@@ -391,9 +391,14 @@ class IcecatConnector(models.AbstractModel):
         }
         
         # Update name if empty
-        if not product.name or product.name == 'New Product':
-            if product_info.get('title'):
-                update_vals['name'] = product_info['title']
+        # Always update product name with brand + title from Icecat
+        if product_info.get('title'):
+            brand = product_info.get('brand', '')
+            title = product_info.get('title', '')
+            if brand and title:
+                update_vals['name'] = f"{brand} {title}"
+            else:
+                update_vals['name'] = title
         
         # Always update description_ecommerce for website display
         if product_info.get('description_long'):
@@ -408,16 +413,27 @@ class IcecatConnector(models.AbstractModel):
             elif product_info.get('description_short'):
                 update_vals['description_sale'] = product_info['description_short']
         
+        # Update brand if product_brand module is installed
+        if 'product_brand_id' in self.env['product.template']._fields:
+            brand_name = product_info.get('brand')
+            if brand_name:
+                brand = self.env['product.brand'].search([('name', '=', brand_name)], limit=1)
+                if not brand:
+                    brand = self.env['product.brand'].create({'name': brand_name})
+                update_vals['product_brand_id'] = brand.id
+
         # Update images if configured
         if self._get_config_param('sync_images', 'True') == 'True':
             if product_info.get('images'):
-                # Eerst bestaande Icecat-afbeeldingen ophalen (op basis van icecat_url)
+                # Get existing Icecat images (by name pattern)
                 existing_images = self.env['product.image'].search([
                     ('product_tmpl_id', '=', product.id),
-                    ('icecat_url', '!=', False)
+                    ('name', 'ilike', 'Icecat Image')
                 ])
-                existing_urls = {img.icecat_url: img for img in existing_images}
-
+                # Delete old Icecat images to avoid duplicates
+                existing_images.unlink()
+                
+                # Sync images
                 image_count = 0
                 for idx, image_info in enumerate(product_info['images']):
                     url = image_info.get('url') or image_info.get('pic')
@@ -429,23 +445,19 @@ class IcecatConnector(models.AbstractModel):
                         continue
 
                     if idx == 0:
-                        # Hoofdafbeelding altijd overschrijven
+                        # Main image
                         update_vals['image_1920'] = image_data
                         image_count += 1
                     else:
-                        # Extra afbeeldingen: alleen toevoegen als nog niet bestaat
-                        if url not in existing_urls:
-                            self.env['product.image'].create({
-                                'product_tmpl_id': product.id,
-                                'image_1920': image_data,
-                                'name': image_info.get('title', f"Icecat Image {idx + 1}"),
-                                'icecat_url': url,
-                                'sequence': idx,
-                            })
-                            image_count += 1
-                        else:
-                            # Optioneel: sequence updaten als de volgorde anders is
-                            existing_urls[url].write({'sequence': idx})
+                        # Extra images
+                        self.env['product.image'].create({
+                            'product_tmpl_id': product.id,
+                            'image_1920': image_data,
+                            'name': image_info.get('title', f"Icecat Image {idx + 1}"),
+                            'sequence': idx,
+                        })
+                        image_count += 1
+
         
         # Write updates to product
         product.write(update_vals)

@@ -4,7 +4,7 @@
 
         <!-- 1. Toon jouw mooie Icecat specificaties (onder de beschrijving) -->
         <template id="icecat_product_specifications" inherit_id="website_sale.product" priority="40">
-            <xpath expr="//div[@itemprop='description']" position="after">
+            <xpath expr="//div[@id='product_full_description']" position="after">
                 <div t-if="product.icecat_specifications_grouped" class="mt-5">
                     <h3 class="mb-4">Technische specificaties</h3>
                     <div id="icecat-accordion" class="accordion">
