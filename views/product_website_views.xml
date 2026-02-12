@@ -1,20 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        
-        <!-- Add collapsible specifications to product page -->
-        <template id="product_specifications_collapsible" inherit_id="website_sale.product" name="Icecat Specifications">
-            <xpath expr="//div[@id='product_details']" position="after">
-                <t t-if="product.icecat_specifications_grouped">
-                    <div class="container mt-4 mb-4">
-                        <h3>Specificaties</h3>
-                        <div class="specs-container">
-                            <t t-raw="product.icecat_specifications_grouped"/>
-                        </div>
-                    </div>
-                </t>
-            </xpath>
-        </template>
-        
+        <!-- This template is now replaced by website_product_attributes.xml -->
+        <!-- which uses the standard Odoo attribute system instead of custom JSON -->
     </data>
 </odoo>

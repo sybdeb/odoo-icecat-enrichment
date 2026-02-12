@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Icecat Product Enrichment',
-    'version': '19.0.1.0.0',
+    'name': 'DBW Product Enrichment',
+    'version': '19.0.1.1.1',
     'category': 'Sales/Product',
-    'summary': 'Enrich products with Icecat data based on EAN/GTIN',
+    'summary': 'Enrich products with supplier data (Icecat, etc.) based on EAN/GTIN',
     'description': """
-Icecat Product Enrichment
-==========================
-This module integrates with Icecat JSON API to automatically enrich product data.
+DBW Product Enrichment
+======================
+This module integrates with multiple data providers (Icecat, etc.) to automatically enrich product data.
 
 Features:
 ---------
@@ -29,6 +29,7 @@ Batch Processing:
     'depends': [
         'base',
         'product',
+        'website',
         'website_sale',
     ],
     'data': [
@@ -38,7 +39,7 @@ Batch Processing:
         'views/product_template_views.xml',
         'views/icecat_sync_log_views.xml',
         'views/icecat_category_mapping_views.xml',
-        'views/product_website_views.xml',
+        'views/website_product_attributes.xml',
         'wizards/icecat_sync_wizard_views.xml',
         'wizards/spec_manager_wizard_views.xml',
     ],

@@ -9,7 +9,6 @@
             <field name="inherit_id" ref="product.product_template_only_form_view"/>
             <field name="arch" type="xml">
                 <!-- Add Icecat Sync button -->
-                <!-- Add Icecat Sync button -->
                 <xpath expr="//div[@name='button_box']" position="inside">
                     <button name="action_sync_with_icecat"
                             type="object"
@@ -18,13 +17,6 @@
                             icon="fa-refresh"
                             invisible="not barcode"
                             help="Synchronize this product with Icecat database"/>
-                    <button name="action_open_spec_manager"
-                            type="object"
-                            string="Beheer Specs"
-                            class="oe_stat_button"
-                            icon="fa-list"
-                            invisible="not icecat_specifications_raw"
-                            help="Beheer Icecat specificaties"/>
                 </xpath>
                 
                 <!-- Add Icecat tab -->
@@ -51,19 +43,14 @@
                     </page>
                 </xpath>
                 
-                <!-- Voeg Specificaties-tab toe aan product form -->
-                <xpath expr="//page[@name='icecat']" position="after">
-                    <page string="Specificaties" name="specifications">
-                        <field name="icecat_specifications_grouped" nolabel="1" readonly="1"/>
-                    </page>
-                </xpath>                <!-- Make Attributes & Variants tab always visible -->
+                <!-- Make Attributes & Variants tab always visible -->
                 <xpath expr="//page[@name='variants']" position="attributes">
                     <attribute name="invisible">0</attribute>
                 </xpath>
                 
                 <!-- Customize attribute display with custom tree view -->
                 <xpath expr="//field[@name='attribute_line_ids']" position="attributes">
-                    <attribute name="context">{'tree_view_ref': 'icecat_product_enrichment.product_template_attribute_line_tree_grouped'}</attribute>
+                    <attribute name="context">{'tree_view_ref': 'dbw_product_enrichment.product_template_attribute_line_tree_grouped'}</attribute>
                 </xpath>
             </field>
         </record>

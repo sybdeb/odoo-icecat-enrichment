@@ -51,58 +51,38 @@ class ProductTemplate(models.Model):
     )
     icecat_specifications_raw = fields.Json(
         string='Icecat Specifications Raw',
-        help='Raw specifications data from Icecat, stored as JSON'
+        readonly=True,
+        help='Raw specifications data from Icecat, stored as JSON (source of truth)'
     )
+    
+    # TEMPORARY: Deprecated field to prevent crashes from old cached views
+    # Will be removed after all views are updated
     icecat_specifications_grouped = fields.Html(
-        string='Gegroepeerde Specificaties',
-        compute='_compute_icecat_specifications_grouped',
-        help='Specificaties gegroepeerd per categorie, Tweakers-stijl'
+        string='Specifications (Deprecated)',
+        compute='_compute_icecat_specifications_grouped_dummy',
+        help='DEPRECATED - This field does nothing and will be removed'
+    )
+    
+    icecat_attributes_count = fields.Integer(
+        string='Attributes Count',
+        compute='_compute_icecat_attributes_count',
+        help='Number of Icecat attributes synced to this product'
     )
 
-    @api.depends('icecat_specifications_raw')
-    def _compute_icecat_specifications_grouped(self):
-        """Genereer HTML-tabel per Icecat-categorie, zoals op Tweakers"""
-        from collections import defaultdict
-        
+    @api.depends()
+    def _compute_icecat_specifications_grouped_dummy(self):
+        """Dummy compute method - returns empty to prevent crashes"""
         for product in self:
-            specs_html = ''
-            grouped_specs = defaultdict(list)
-            
-            # Parse JSON specs if they exist
-            if product.icecat_specifications_raw:
-                import json
-                specs_data = product.icecat_specifications_raw if isinstance(product.icecat_specifications_raw, dict) else json.loads(product.icecat_specifications_raw)
-                
-                for group, specs in specs_data.items():
-                    for spec in specs:
-                        grouped_specs[group].append({
-                            'name': spec.get('name', ''),
-                            'value': spec.get('value', ''),
-                            'unit': spec.get('unit', '')
-                        })
-            
-            # Build HTML: sections with tables
-            for group, specs in grouped_specs.items():
-                specs_html += f'''
-                    <div class="specs-section">
-                        <h4 class="specs-group-title">{group}</h4>
-                        <table class="table table-sm table-striped specs-table">
-                            <tbody>
-                '''
-                for spec in specs:
-                    specs_html += f'''
-                                <tr>
-                                    <td class="spec-key"><strong>{spec['name']}</strong></td>
-                                    <td class="spec-value">{spec['value']} {spec['unit']}</td>
-                                </tr>
-                    '''
-                specs_html += '''
-                            </tbody>
-                        </table>
-                    </div>
-                '''
-            
-            product.icecat_specifications_grouped = specs_html if specs_html else '<p>Geen specificaties beschikbaar.</p>'
+            product.icecat_specifications_grouped = False
+
+    @api.depends('attribute_line_ids')
+    def _compute_icecat_attributes_count(self):
+        """Count number of Icecat-sourced attributes"""
+        for product in self:
+            icecat_attrs = product.attribute_line_ids.filtered(
+                lambda l: l.attribute_id.category_id and '[Icecat]' in (l.attribute_id.category_id.name or '')
+            )
+            product.icecat_attributes_count = len(icecat_attrs)
 
     def action_sync_with_icecat(self):
         """Manual sync action for selected products"""
@@ -139,6 +119,45 @@ class ProductTemplate(models.Model):
                 }
             }
 
+    def action_convert_json_to_attributes(self):
+        """
+        Convert existing JSON specifications to Odoo attributes
+        Useful for migrating products that were synced with old version
+        """
+        self.ensure_one()
+        
+        if not self.icecat_specifications_raw:
+            raise UserError(_('This product has no JSON specifications to convert.'))
+        
+        # Parse JSON specs
+        import json
+        specs_data = self.icecat_specifications_raw if isinstance(self.icecat_specifications_raw, dict) else json.loads(self.icecat_specifications_raw)
+        
+        # Convert to flat list format expected by _sync_product_attributes
+        specifications = []
+        for group, specs in specs_data.items():
+            for spec in specs:
+                specifications.append({
+                    'group': group,
+                    'name': spec.get('name', ''),
+                    'value': spec.get('value', ''),
+                    'unit': spec.get('unit', '')
+                })
+        
+        # Sync to attributes
+        self.env['icecat.connector']._sync_product_attributes(self, specifications)
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Success'),
+                'message': _(f'Converted {len(specifications)} specifications to Odoo attributes'),
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     def action_open_spec_manager(self):
         """Open the specification manager wizard"""
         self.ensure_one()
@@ -168,13 +187,13 @@ class ProductTemplate(models.Model):
         
         # Check if auto sync is enabled
         if not self.env['ir.config_parameter'].sudo().get_param(
-            'icecat_product_enrichment.auto_sync_enabled', default=True
+            'dbw_product_enrichment.auto_sync_enabled', default=True
         ):
             return
         
         batch_size = int(self.env['ir.config_parameter'].sudo().get_param(
-            'icecat_product_enrichment.new_product_batch_size', default=10
-        ))
+                'dbw_product_enrichment.new_product_batch_size', default=10
+            ))
         
         # Find products that have variants with barcodes but haven't been synced yet
         products = self.search([
@@ -288,13 +307,13 @@ class ProductTemplate(models.Model):
         
         # Check if auto sync is enabled
         if not self.env['ir.config_parameter'].sudo().get_param(
-            'icecat_product_enrichment.auto_sync_enabled', default=True
+            'dbw_product_enrichment.auto_sync_enabled', default=True
         ):
             return
         
         batch_size = int(self.env['ir.config_parameter'].sudo().get_param(
-            'icecat_product_enrichment.update_batch_size', default=100
-        ))
+                'dbw_product_enrichment.update_batch_size', default=100
+            ))
         
         # Find products that were synced more than 30 days ago
         thirty_days_ago = fields.Datetime.now() - fields.timedelta(days=30)

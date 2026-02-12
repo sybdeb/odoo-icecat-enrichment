@@ -250,10 +250,79 @@ class IcecatConnector(models.AbstractModel):
             return None
 
     @api.model
+    def _get_or_create_attribute_category(self, category_name):
+        """
+        Get or create a product attribute category for grouping
+        Returns: product.attribute.category record
+        """
+        CategoryModel = self.env['product.attribute.category']
+        
+        # Search for existing category
+        category = CategoryModel.search([
+            ('name', '=', category_name),
+        ], limit=1)
+        
+        if not category:
+            # Create new category with sequence based on common order
+            sequence_map = {
+                'Design': 10,
+                'Beeldscherm': 20,
+                'Processor': 30,
+                'Geheugen': 40,
+                'Opslagmedia': 50,
+                'Grafisch': 60,
+                'Audio': 70,
+                'Camera': 80,
+                'Netwerk': 90,
+                'Poorten & interfaces': 100,
+                'Toetsenbord': 110,
+                'Software': 120,
+                'Accu/Batterij': 130,
+                'Energie': 140,
+                'Beveiliging': 150,
+                'Gewicht en omvang': 160,
+                'Inhoud van de verpakking': 170,
+            }
+            sequence = sequence_map.get(category_name, 999)
+            
+            category = CategoryModel.create({
+                'name': category_name,
+                'sequence': sequence,
+            })
+            _logger.info(f"Created new attribute category: {category.name}")
+        
+        return category
+
+    @api.model
+    def _detect_attribute_display_type(self, spec_name, spec_values):
+        """
+        Detect the best display type for an attribute based on name and values
+        Returns: 'select', 'radio', 'color', 'pills', or 'multi'
+        """
+        spec_name_lower = spec_name.lower()
+        
+        # Color detection
+        if 'kleur' in spec_name_lower or 'color' in spec_name_lower or 'colour' in spec_name_lower:
+            return 'color'
+        
+        # Boolean/Yes-No detection (radio buttons)
+        unique_values = set(str(v).strip().upper() for v in spec_values if v)
+        if unique_values.issubset({'Y', 'N', 'YES', 'NO', 'JA', 'NEE', 'TRUE', 'FALSE', '1', '0'}):
+            return 'radio'
+        
+        # If 2-3 unique values, use pills for compact display
+        if len(unique_values) <= 3:
+            return 'pills'
+        
+        # Default: select dropdown for many options
+        return 'select'
+
+    @api.model
     def _sync_product_attributes(self, product, specifications):
         """
         Sync Icecat specifications to Odoo's standard product.attribute system
-        Groups specs by category with [Icecat] prefix for automatic backend grouping
+        Each specification becomes an individual attribute (e.g., "Kleur", "Processorfabrikant")
+        Grouped by category for better organization on website and backend
         100% compatible with eCommerce filters, variants, and search
         """
         if not specifications:
@@ -263,16 +332,20 @@ class IcecatConnector(models.AbstractModel):
         value_obj = self.env['product.attribute.value']
         template_attr_obj = self.env['product.template.attribute.line']
         
-        _logger.info(f"Syncing {len(specifications)} specifications as attributes for product {product.name}")
+        _logger.info(f"Syncing {len(specifications)} specifications as individual attributes for product {product.name}")
         
         # Remove only Icecat-managed attributes (preserve manual ones)
         icecat_lines = product.attribute_line_ids.filtered(
-            lambda l: l.attribute_id.name.startswith('[Icecat]')
+            lambda l: (
+                l.attribute_id.name.startswith('[Icecat]') or 
+                (l.attribute_id.category_id and l.attribute_id.category_id.name.startswith('[Icecat]'))
+            )
         )
         if icecat_lines:
+            _logger.info(f"Removing {len(icecat_lines)} existing Icecat attribute lines")
             icecat_lines.unlink()
         
-        # Group specifications by category for cleaner attribute structure
+        # Group specifications by category
         grouped_specs = {}
         for spec in specifications:
             group = spec.get('group') or 'Algemeen'
@@ -280,57 +353,100 @@ class IcecatConnector(models.AbstractModel):
                 grouped_specs[group] = []
             grouped_specs[group].append(spec)
         
-        # Create attributes per group (enables automatic backend grouping)
+        _logger.info(f"Processing {len(grouped_specs)} specification groups: {list(grouped_specs.keys())}")
+        
+        # Process each specification group
         for group_name, specs in grouped_specs.items():
-            # Attribute name: [Icecat] Group → auto-groups in backend
-            attr_name = f"[Icecat] {group_name}"
+            # Get or create category for this group
+            category = self._get_or_create_attribute_category(group_name)
             
-            # Find or create the group attribute
-            attribute = attribute_obj.search([('name', '=', attr_name)], limit=1)
-            if not attribute:
-                attribute = attribute_obj.create({
-                    'name': attr_name,
-                    'display_type': 'select',
-                    'create_variant': 'no_variant',  # Don't create product variants
-                })
-            
-            # Collect all values for this group
-            values_to_create = []
+            # Create individual attribute for EACH specification
             for spec in specs:
                 spec_name = spec.get('name')
-                spec_value = str(spec.get('value', ''))
+                spec_value = str(spec.get('value', '')).strip()
+                spec_unit = spec.get('unit', '').strip()
                 
                 if not spec_name or not spec_value:
                     continue
                 
-                # Value format: "Spec Name: Value"
-                value_name = f"{spec_name}: {spec_value}"
+                # Add unit to value if present
+                if spec_unit:
+                    full_value = f"{spec_value} {spec_unit}"
+                else:
+                    full_value = spec_value
+                
+                # Find or create the attribute for this specific spec
+                # Use spec name without [Icecat] prefix for cleaner display
+                attribute = attribute_obj.search([
+                    ('name', '=', spec_name),
+                    ('category_id', '=', category.id)
+                ], limit=1)
+                
+                if not attribute:
+                    # Detect best display type
+                    display_type = self._detect_attribute_display_type(spec_name, [spec_value])
+                    
+                    attribute = attribute_obj.create({
+                        'name': spec_name,
+                        'category_id': category.id,
+                        'display_type': display_type,
+                        'create_variant': 'no_variant',  # Don't create product variants
+                    })
+                    _logger.debug(f"Created attribute: {spec_name} ({display_type}) in {category.name}")
                 
                 # Find or create the attribute value
                 value = value_obj.search([
                     ('attribute_id', '=', attribute.id),
-                    ('name', '=', value_name)
+                    ('name', '=', full_value)
                 ], limit=1)
                 
                 if not value:
-                    value = value_obj.create({
+                    # For color attributes, try to set HTML color if value looks like a color
+                    value_data = {
                         'attribute_id': attribute.id,
-                        'name': value_name,
-                    })
+                        'name': full_value,
+                    }
+                    
+                    # Simple color detection for common color names
+                    if attribute.display_type == 'color':
+                        color_map = {
+                            'black': '#000000',
+                            'white': '#FFFFFF',
+                            'silver': '#C0C0C0',
+                            'grey': '#808080',
+                            'gray': '#808080',
+                            'red': '#FF0000',
+                            'blue': '#0000FF',
+                            'green': '#00FF00',
+                            'yellow': '#FFFF00',
+                        }
+                        color_name = full_value.lower().strip()
+                        if color_name in color_map:
+                            value_data['html_color'] = color_map[color_name]
+                    
+                    value = value_obj.create(value_data)
+                    _logger.debug(f"Created value: {full_value} for {spec_name}")
                 
-                values_to_create.append(value.id)
-            
-            # Create attribute line with all values for this group
-            if values_to_create:
+                # Create or update attribute line for this product
                 existing_line = product.attribute_line_ids.filtered(
                     lambda l: l.attribute_id.id == attribute.id
                 )
-                if not existing_line:
+                
+                if existing_line:
+                    # Add value if not already present
+                    if value.id not in existing_line.value_ids.ids:
+                        existing_line.write({
+                            'value_ids': [(4, value.id)]
+                        })
+                else:
+                    # Create new attribute line
                     template_attr_obj.create({
                         'product_tmpl_id': product.id,
                         'attribute_id': attribute.id,
-                        'value_ids': [(6, 0, values_to_create)]
+                        'value_ids': [(6, 0, [value.id])]
                     })
+        
+        _logger.info(f"Successfully synced {len(specifications)} specifications to product attributes")
 
 
     @api.model
@@ -462,14 +578,13 @@ class IcecatConnector(models.AbstractModel):
         # Write updates to product
         product.write(update_vals)
         
-        # Always store raw specifications for grouped display
+        # ALWAYS store raw specifications as JSON (source of truth)
         if product_info.get('specifications'):
             product.write({'icecat_specifications_raw': product_info['specifications']})
-        
-        # Sync specifications as product attributes if configured
-        if self._get_config_param('sync_attributes', 'False') == 'True':
-            if product_info.get('specifications'):
-                self._sync_product_attributes(product, product_info['specifications'])
+            
+            # Convert JSON specs to Odoo attributes for website display & filtering
+            self._sync_product_attributes(product, product_info['specifications'])
+            _logger.info(f"Stored JSON and synced {len(product_info['specifications'])} specifications as Odoo attributes")
         
         # Apply category mapping if we have an Icecat category
         if product_info.get('category'):
