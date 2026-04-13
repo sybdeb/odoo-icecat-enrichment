@@ -30,28 +30,65 @@ class IcecatSyncWizard(models.TransientModel):
     @api.depends('sync_type')
     def _compute_product_count(self):
         for wizard in self:
-            domain = wizard._get_product_domain()
-            wizard.product_count = self.env['product.template'].search_count(domain)
+            wizard.product_count = len(wizard._get_products_to_sync())
 
-    def _get_product_domain(self):
-        """Get domain based on sync type"""
+    def _has_sync_identifier(self, product):
+        """A product is sync-eligible when it has:
+        - an EAN/barcode on template/variant, OR
+        - a SKU (default_code) + brand (product_brand_id or icecat_brand)
+        """
+        barcode = (product.barcode or '').strip()
+        if not barcode:
+            variant_with_barcode = product.product_variant_ids.filtered(lambda v: v.barcode)[:1]
+            barcode = (variant_with_barcode.barcode or '').strip() if variant_with_barcode else ''
+
+        if barcode:
+            return True
+
+        sku = (product.default_code or '').strip()
+        if not sku:
+            variant_with_sku = product.product_variant_ids.filtered(lambda v: v.default_code)[:1]
+            sku = (variant_with_sku.default_code or '').strip() if variant_with_sku else ''
+
+        brand_name = ''
+        if 'product_brand_id' in product._fields and product.product_brand_id:
+            brand_name = (product.product_brand_id.name or '').strip()
+        if not brand_name:
+            brand_name = (product.icecat_brand or '').strip()
+
+        return bool(sku and brand_name)
+
+    def _get_products_to_sync(self):
+        """Return sync candidates for selected sync_type, filtered on supported identifiers."""
+        Product = self.env['product.template']
+
         if self.sync_type == 'selected':
             product_ids = self.env.context.get('active_ids', [])
-            return [('id', 'in', product_ids), ('barcode', '!=', False)]
+            products = Product.browse(product_ids).exists()
         elif self.sync_type == 'all_not_synced':
-            return [('barcode', '!=', False), ('icecat_sync_status', 'in', ['not_synced', 'pending'])]
+            products = Product.search([
+                ('icecat_sync_status', 'in', ['not_synced', 'pending'])
+            ])
         elif self.sync_type == 'all_with_errors':
-            return [('barcode', '!=', False), ('icecat_sync_status', '=', 'error')]
+            products = Product.search([
+                ('icecat_sync_status', '=', 'error')
+            ])
         elif self.sync_type == 'all_outdated':
             thirty_days_ago = fields.Datetime.now() - fields.timedelta(days=30)
-            return [
-                ('barcode', '!=', False),
+            products = Product.search([
                 ('icecat_sync_status', '=', 'synced'),
                 '|',
                 ('icecat_last_sync', '<', thirty_days_ago),
                 ('icecat_last_sync', '=', False),
-            ]
-        return []
+            ])
+        else:
+            products = Product.browse()
+
+        return products.filtered(self._has_sync_identifier)
+
+    def _get_product_domain(self):
+        """Get domain based on sync type"""
+        return [('id', 'in', self._get_products_to_sync().ids)]
 
     def action_sync_products(self):
         """Execute the bulk sync"""
@@ -80,7 +117,7 @@ class IcecatSyncWizard(models.TransientModel):
         
         # Get products to sync
         domain = self._get_product_domain()
-        products = self.env['product.template'].search(domain, limit=self.batch_size)
+        products = self._get_products_to_sync()[:self.batch_size]
         
         if not products:
             raise UserError(_('No products found to synchronize.'))
