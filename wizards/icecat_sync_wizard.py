@@ -115,12 +115,13 @@ class IcecatSyncWizard(models.TransientModel):
                     'Contact: support@nerbys.nl'
                 )
         
-        # Get products to sync
-        domain = self._get_product_domain()
-        products = self._get_products_to_sync()[:self.batch_size]
+        # Get products to sync (all candidates, processed in chunks of batch_size)
+        products = self._get_products_to_sync().sorted(key=lambda p: p.id)
         
         if not products:
             raise UserError(_('No products found to synchronize.'))
+
+        chunk_size = max(1, int(self.batch_size or 1))
         
         # Perform sync
         IceCatConnector = self.env['icecat.connector']
@@ -129,24 +130,33 @@ class IcecatSyncWizard(models.TransientModel):
         error_count = 0
         no_data_count = 0
         
-        for product in products:
-            try:
-                result = IceCatConnector.sync_product(product)
-                if result.get('success'):
-                    synced_count += 1
-                elif product.icecat_sync_status == 'no_data':
-                    no_data_count += 1
-                else:
+        for start in range(0, len(products), chunk_size):
+            batch_products = products[start:start + chunk_size]
+            for product in batch_products:
+                try:
+                    result = IceCatConnector.sync_product(product)
+                    if result.get('success'):
+                        synced_count += 1
+                    elif product.icecat_sync_status == 'no_data':
+                        no_data_count += 1
+                    else:
+                        error_count += 1
+                except Exception as e:
                     error_count += 1
-            except Exception as e:
-                error_count += 1
-                product.write({
-                    'icecat_sync_status': 'error',
-                    'icecat_error_message': str(e),
-                })
+                    product.write({
+                        'icecat_sync_status': 'error',
+                        'icecat_error_message': str(e),
+                    })
+
+            # Commit per chunk to keep transactions manageable on large runs
+            self.env.cr.commit()
         
         # Show result message
+        processed_count = len(products)
+        batch_count = (processed_count + chunk_size - 1) // chunk_size
+
         message = _('Synchronization completed:\n')
+        message += _('- Processed: %s products in %s batches\n') % (processed_count, batch_count)
         message += _('- Successfully synced: %s\n') % synced_count
         message += _('- No data available: %s\n') % no_data_count
         message += _('- Errors: %s') % error_count
@@ -159,5 +169,6 @@ class IcecatSyncWizard(models.TransientModel):
                 'message': message,
                 'type': 'success' if error_count == 0 else 'warning',
                 'sticky': True,
+                'next': {'type': 'ir.actions.act_window_close'},
             }
         }

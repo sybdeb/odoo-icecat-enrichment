@@ -18,10 +18,10 @@
                         </group>
                     </group>
                     <div class="alert alert-info" role="alert">
-                        <p><strong>Note:</strong> This will synchronize products with the Icecat database based on their EAN/GTIN barcode.</p>
+                        <p><strong>Note:</strong> This will synchronize products with the Icecat database based on EAN/GTIN, with SKU+brand fallback when available.</p>
                         <ul>
-                            <li>Products without a barcode will be skipped</li>
-                            <li>Batch size determines how many products to process in this run</li>
+                            <li>Products without usable identifiers will be skipped</li>
+                            <li>Batch size determines chunk size; all matching products are processed automatically</li>
                             <li>Large batches may take several minutes to complete</li>
                         </ul>
                     </div>
