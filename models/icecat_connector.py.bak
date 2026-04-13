@@ -4,7 +4,6 @@ import base64
 import logging
 import requests
 from datetime import datetime
-from urllib.parse import urlencode
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
@@ -58,30 +57,54 @@ class IcecatConnector(models.AbstractModel):
         return self._get_config_param('api_url', 'https://live.icecat.biz/api')
 
     @api.model
-    def _request_icecat_url(self, url, lookup_label='lookup'):
-        """Execute Icecat HTTP call and normalize response handling."""
+    def _make_api_request(self, ean_code):
+        """
+        Make a request to Icecat JSON API
+        Based on: https://iceclog.com/manual-for-icecat-json-product-requests/
+        """
         username, password = self._get_api_credentials()
-
+        api_url = self._get_api_url()
+        
+        # Ensure EAN code is a string
+        ean_code = str(ean_code or '').strip()
+        
+        # Log the barcode we received
+        _logger.info(f"Received EAN code: '{ean_code}' (type: {type(ean_code).__name__})")
+        
+        # Ensure EAN code is not empty
+        if not ean_code:
+            _logger.error("EAN code is empty!")
+            return {'success': False, 'error': 'EAN code is empty'}
+        
+        # Construct the API endpoint for EAN lookup
+        # Format: https://live.icecat.biz/api?lang=EN&shopname=username&GTIN=EAN&content=
+        # Get language from context or use Dutch as default
+        lang_code = self.env.context.get('lang', 'nl_NL')
+        # Map Odoo language codes to Icecat language codes
+        icecat_lang = 'nl' if lang_code.startswith('nl') else 'en'
+        url = f"{api_url}?lang={icecat_lang}&shopname={username}&GTIN={ean_code}&content="
+        
+        _logger.info(f"Requesting Icecat data for EAN: {ean_code}")
+        
         try:
+            # Basic authentication
             auth_string = f"{username}:{password}"
             auth_bytes = auth_string.encode('ascii')
             auth_b64 = base64.b64encode(auth_bytes).decode('ascii')
-
+            
             headers = {
                 'Authorization': f'Basic {auth_b64}',
                 'Accept': 'application/json',
             }
-
+            
             response = requests.get(url, headers=headers, timeout=30)
-
-            _logger.info(f"Icecat API {lookup_label} URL: {url}")
-            _logger.info(f"Icecat API {lookup_label} response status: {response.status_code}")
+            
+            # Log response status and URL
+            _logger.info(f"Icecat API URL: {url}")
+            _logger.info(f"Icecat API response status: {response.status_code}")
             if response.status_code != 200:
-                if response.status_code in (400, 403, 404):
-                    _logger.warning(f"Icecat API {lookup_label} response body: {response.text[:500]}")
-                else:
-                    _logger.error(f"Icecat API {lookup_label} response body: {response.text[:500]}")
-
+                _logger.error(f"Icecat API response body: {response.text[:500]}")
+            
             if response.status_code == 200:
                 try:
                     data = response.json()
@@ -93,6 +116,7 @@ class IcecatConnector(models.AbstractModel):
                         'error': _('Invalid JSON response from Icecat API')
                     }
             elif response.status_code == 404:
+                # Check if it's a brand restriction vs product not found
                 try:
                     error_data = response.json()
                     if 'brand restrictions' in error_data.get('Message', '').lower():
@@ -101,7 +125,7 @@ class IcecatConnector(models.AbstractModel):
                             'error': _('Product has brand restrictions. This product requires Full Icecat subscription.'),
                             'status': 'no_data'
                         }
-                except Exception:
+                except:
                     pass
                 return {
                     'success': False,
@@ -125,35 +149,6 @@ class IcecatConnector(models.AbstractModel):
                     'error': _('Product niet beschikbaar via Open Icecat (vereist Full Icecat abonnement).'),
                     'status': 'no_data',
                 }
-            elif response.status_code == 400:
-                message_text = ''
-                try:
-                    error_data = response.json()
-                    message_text = (error_data.get('Message') or error_data.get('message', '') or '').strip()
-                except Exception:
-                    message_text = (response.text or '').strip()
-
-                message_lc = message_text.lower()
-                if 'identifier' in message_lc and 'empty' in message_lc:
-                    _logger.warning("Icecat %s: no usable identifier match (%s)", lookup_label, message_text)
-                    return {
-                        'success': False,
-                        'error': _('Geen Icecat match voor opgegeven productcode.'),
-                        'status': 'no_data',
-                    }
-                if 'gtin' in message_lc and 'not be found' in message_lc:
-                    _logger.warning("Icecat %s: GTIN not found (%s)", lookup_label, message_text)
-                    return {
-                        'success': False,
-                        'error': _('Product niet gevonden op basis van GTIN in Icecat.'),
-                        'status': 'no_data',
-                    }
-
-                return {
-                    'success': False,
-                    'error': f"Icecat API error: 400 - {message_text}",
-                    'status': 'error',
-                }
             else:
                 error_msg = f"Icecat API error: {response.status_code}"
                 try:
@@ -161,10 +156,10 @@ class IcecatConnector(models.AbstractModel):
                     error_msg += f" - {error_data.get('Message') or error_data.get('message', '')}"
                 except Exception:
                     error_msg += f" - {response.text[:200]}"
-
+                
                 _logger.error(error_msg)
                 return {'success': False, 'error': error_msg}
-
+                
         except requests.exceptions.Timeout:
             error_msg = _('Icecat API request timed out')
             _logger.error(error_msg)
@@ -177,171 +172,6 @@ class IcecatConnector(models.AbstractModel):
             error_msg = f"Unexpected error: {str(e)}"
             _logger.exception(error_msg)
             return {'success': False, 'error': error_msg}
-
-    @api.model
-    def _make_api_request(self, ean_code):
-        """
-        Make a request to Icecat JSON API
-        Based on: https://iceclog.com/manual-for-icecat-json-product-requests/
-        """
-        username, _password = self._get_api_credentials()
-        api_url = self._get_api_url()
-        
-        # Ensure EAN code is a string
-        ean_code = str(ean_code or '').strip()
-        
-        # Log the barcode we received
-        _logger.info(f"Received EAN code: '{ean_code}' (type: {type(ean_code).__name__})")
-        
-        # Ensure EAN code is not empty
-        if not ean_code:
-            _logger.error("EAN code is empty!")
-            return {'success': False, 'error': 'EAN code is empty'}
-        
-        # Construct the API endpoint for EAN lookup
-        # Format: https://live.icecat.biz/api?lang=EN&shopname=username&GTIN=EAN&content=
-        # Get language from context or use Dutch as default
-        lang_code = self.env.context.get('lang', 'nl_NL')
-        # Map Odoo language codes to Icecat language codes
-        icecat_lang = 'nl' if lang_code.startswith('nl') else 'en'
-        query = urlencode({
-            'lang': icecat_lang,
-            'shopname': username,
-            'GTIN': ean_code,
-            'content': '',
-        })
-        url = f"{api_url}?{query}"
-        
-        _logger.info(f"Requesting Icecat data for EAN: {ean_code}")
-        
-        return self._request_icecat_url(url, lookup_label=f"EAN {ean_code}")
-
-    @api.model
-    def _make_api_request_sku_brand(self, sku, brand):
-        """Fallback lookup via SKU + brand when EAN is missing."""
-        username, _password = self._get_api_credentials()
-        api_url = self._get_api_url()
-
-        sku = str(sku or '').strip()
-        brand = str(brand or '').strip()
-        if not sku or not brand:
-            return {
-                'success': False,
-                'status': 'no_data',
-                'error': _('Product has no usable SKU+brand fallback for Icecat lookup'),
-            }
-
-        lang_code = self.env.context.get('lang', 'nl_NL')
-        icecat_lang = 'nl' if lang_code.startswith('nl') else 'en'
-
-        sku_variants = [
-            sku,
-            sku.replace(' ', ''),
-        ]
-        seen_sku = set()
-        unique_sku_variants = []
-        for sku_candidate in sku_variants:
-            key = sku_candidate.strip()
-            if key and key not in seen_sku:
-                seen_sku.add(key)
-                unique_sku_variants.append(key)
-
-        attempts = []
-        for sku_candidate in unique_sku_variants:
-            attempts.extend([
-                {'ProductCode': sku_candidate, 'Brand': brand},
-                {'ProductCode': sku_candidate},
-                {'prod_id': sku_candidate, 'brand': brand},
-            ])
-
-        last_no_data_result = None
-        for params in attempts:
-            query_params = {
-                'lang': icecat_lang,
-                'shopname': username,
-                'content': '',
-            }
-            query_params.update(params)
-            url = f"{api_url}?{urlencode(query_params)}"
-            result = self._request_icecat_url(url, lookup_label=f"SKU/brand {params}")
-            if result.get('success'):
-                return result
-            if result.get('status') == 'no_data':
-                last_no_data_result = result
-                error_text = (result.get('error') or '').lower()
-                if (
-                    'full icecat' in error_text
-                    or 'open icecat' in error_text
-                    or 'abonnement' in error_text
-                    or 'subscription' in error_text
-                ):
-                    return result
-
-        return last_no_data_result or {
-            'success': False,
-            'status': 'no_data',
-            'error': _('Product not found in Icecat using SKU+brand fallback'),
-        }
-
-    @api.model
-    def _get_product_lookup_inputs(self, product, barcode=None):
-        """Resolve best lookup identifiers for a product (EAN first, then SKU+brand)."""
-        barcode_value = str(barcode or '').strip()
-        if not barcode_value:
-            barcode_value = str(product.barcode or '').strip()
-        if not barcode_value:
-            variant_with_barcode = product.product_variant_ids.filtered(lambda v: v.barcode)[:1]
-            barcode_value = str(variant_with_barcode.barcode or '').strip() if variant_with_barcode else ''
-
-        sku_value = str(product.default_code or '').strip()
-        if not sku_value:
-            variant_with_sku = product.product_variant_ids.filtered(lambda v: v.default_code)[:1]
-            sku_value = str(variant_with_sku.default_code or '').strip() if variant_with_sku else ''
-
-        brand_value = ''
-        if 'product_brand_id' in product._fields and product.product_brand_id:
-            brand_value = str(product.product_brand_id.name or '').strip()
-        if not brand_value:
-            brand_value = str(product.icecat_brand or '').strip()
-
-        return barcode_value, sku_value, brand_value
-
-    @api.model
-    def _get_boolean_attribute_value(self, attribute, raw_value):
-        """Resolve Y/N-like values within the context of one attribute."""
-        normalized = (raw_value or '').strip().lower()
-        positive = {'y', 'yes', 'ja'}
-        negative = {'n', 'no', 'geen'}
-        if normalized in positive:
-            target_en, target_nl = 'Yes', 'Ja'
-        elif normalized in negative:
-            target_en, target_nl = 'No', 'Geen'
-        else:
-            return False
-
-        value_obj = self.env['product.attribute.value']
-        candidates = value_obj.search([('attribute_id', '=', attribute.id)])
-        match = candidates.filtered(
-            lambda v: ((v.with_context(lang='en_US').name or '').strip().lower() == target_en.lower())
-            or ((v.with_context(lang='nl_NL').name or '').strip().lower() == target_nl.lower())
-        )[:1]
-        if match:
-            match.with_context(lang='en_US').write({'name': target_en})
-            match.with_context(lang='nl_NL').write({'name': target_nl})
-            return match
-
-        value = value_obj.with_context(lang='en_US').create({
-            'attribute_id': attribute.id,
-            'name': target_en,
-        })
-        value.with_context(lang='nl_NL').write({'name': target_nl})
-        _logger.info(
-            "Created boolean attribute value '%s/%s' for attribute '%s'",
-            target_en,
-            target_nl,
-            attribute.name,
-        )
-        return value
 
     @api.model
     def _parse_product_data(self, icecat_data):
@@ -369,29 +199,14 @@ class IcecatConnector(models.AbstractModel):
             elif isinstance(category_obj, str):
                 category_name = category_obj
             
-            description_data = general_info.get('Description', {}) or {}
-            summary_data = general_info.get('SummaryDescription', {}) or {}
-
-            description_short = (
-                description_data.get('ShortDesc')
-                or summary_data.get('ShortSummaryDescription')
-                or ''
-            )
-            description_long = (
-                description_data.get('LongDesc')
-                or summary_data.get('LongSummaryDescription')
-                or description_data.get('MiddleDesc')
-                or ''
-            )
-
             product_info = {
                 'product_id': general_info.get('IcecatId'),
                 'title': general_info.get('Title', ''),
                 'brand': general_info.get('Brand', ''),
                 'category': category_name,
                 'quality': general_info.get('Quality', ''),
-                'description_short': description_short,
-                'description_long': description_long,
+                'description_short': general_info.get('Description', {}).get('ShortDesc', ''),
+                'description_long': general_info.get('Description', {}).get('LongDesc', ''),
                 'images': [],
                 'specifications': []
             }
@@ -421,9 +236,7 @@ class IcecatConnector(models.AbstractModel):
                         product_info['specifications'].append({
                             'group': group_name,
                             'name': spec_name,
-                            'value': spec_value,
-                            'feature_id': str(feature_obj.get('ID') or feature.get('CategoryFeatureId') or ''),
-                            'value_key': str(feature.get('LocalID') or feature.get('RawValue') or spec_value),
+                            'value': spec_value
                         })
             
             return product_info
@@ -517,7 +330,7 @@ class IcecatConnector(models.AbstractModel):
         return 'select'
 
     @api.model
-    def _sync_product_attributes(self, product, specifications, secondary_specs=None, secondary_lang='en_US'):
+    def _sync_product_attributes(self, product, specifications):
         """
         Sync Icecat specifications to Odoo's standard product.attribute system
         Each specification becomes an individual attribute (e.g., "Kleur", "Processorfabrikant")
@@ -530,15 +343,6 @@ class IcecatConnector(models.AbstractModel):
         attribute_obj = self.env['product.attribute']
         value_obj = self.env['product.attribute.value']
         template_attr_obj = self.env['product.template.attribute.line']
-
-        spec_link_map = {}
-
-        def _spec_key(spec):
-            feature_id = str(spec.get('feature_id') or '').strip()
-            value_key = str(spec.get('value_key') or '').strip().lower()
-            if feature_id:
-                return f"{feature_id}::{value_key}"
-            return f"{(spec.get('name') or '').strip().lower()}::{(str(spec.get('value') or '')).strip().lower()}"
         
         _logger.info(f"Syncing {len(specifications)} specifications as individual attributes for product {product.name}")
         
@@ -585,16 +389,11 @@ class IcecatConnector(models.AbstractModel):
                 
                 # Find or create the attribute for this specific spec
                 # Use spec name without [Icecat] prefix for cleaner display
-                # DBW Value Normalizer: check alias before searching/creating
-                alias_attr = self.env['dbw.value.alias'].resolve('product.attribute', spec_name)
-                if alias_attr:
-                    attribute = alias_attr
-                    _logger.info(f"DBW Normalizer: attribute '{spec_name}' → '{attribute.name}'")
-                else:
-                    attribute = attribute_obj.search([
-                        ('name', '=', spec_name),
-                    ], limit=1)
-
+                attribute = attribute_obj.search([
+                    ('name', '=', spec_name),
+                    ('category_id', '=', category.id)
+                ], limit=1)
+                
                 if not attribute:
                     # Detect best display type
                     display_type = self._detect_attribute_display_type(spec_name, [spec_value])
@@ -608,23 +407,11 @@ class IcecatConnector(models.AbstractModel):
                     _logger.debug(f"Created attribute: {spec_name} ({display_type}) in {category.name}")
                 
                 # Find or create the attribute value
-                value = self._get_boolean_attribute_value(attribute, full_value)
-                if value:
-                    _logger.info(
-                        f"Boolean value normalized: '{full_value}' → '{value.with_context(lang='en_US').name}' for '{attribute.name}'"
-                    )
-                else:
-                    # DBW Value Normalizer: check alias before searching/creating
-                    alias_val = self.env['dbw.value.alias'].resolve('product.attribute.value', full_value)
-                    if alias_val and alias_val.attribute_id.id == attribute.id:
-                        value = alias_val
-                        _logger.info(f"DBW Normalizer: value '{full_value}' → '{value.name}'")
-                    else:
-                        value = value_obj.search([
-                            ('attribute_id', '=', attribute.id),
-                            ('name', '=', full_value)
-                        ], limit=1)
-
+                value = value_obj.search([
+                    ('attribute_id', '=', attribute.id),
+                    ('name', '=', full_value)
+                ], limit=1)
+                
                 if not value:
                     # For color attributes, try to set HTML color if value looks like a color
                     value_data = {
@@ -652,8 +439,6 @@ class IcecatConnector(models.AbstractModel):
                     value = value_obj.create(value_data)
                     _logger.debug(f"Created value: {full_value} for {spec_name}")
                 
-                spec_link_map[_spec_key(spec)] = (attribute, value)
-
                 # Create or update attribute line for this product
                 existing_line = product.attribute_line_ids.filtered(
                     lambda l: l.attribute_id.id == attribute.id
@@ -673,83 +458,8 @@ class IcecatConnector(models.AbstractModel):
                         'value_ids': [(6, 0, [value.id])]
                     })
         
-
-        if secondary_specs and secondary_lang:
-            for secondary_spec in secondary_specs:
-                pair = spec_link_map.get(_spec_key(secondary_spec))
-                if not pair:
-                    continue
-
-                attribute, value = pair
-                sec_name = (secondary_spec.get('name') or '').strip()
-                sec_value = str(secondary_spec.get('value', '')).strip()
-                sec_unit = (secondary_spec.get('unit') or '').strip()
-                sec_full_value = f"{sec_value} {sec_unit}".strip() if sec_unit else sec_value
-
-                if sec_name:
-                    attribute.with_context(lang=secondary_lang).write({'name': sec_name})
-                if sec_full_value:
-                    value.with_context(lang=secondary_lang).write({'name': sec_full_value})
-
         _logger.info(f"Successfully synced {len(specifications)} specifications to product attributes")
 
-
-    @api.model
-    def _fetch_product_info_for_lang(self, barcode, lang_code, sku=None, brand=None):
-        connector = self.with_context(lang=lang_code)
-        if barcode:
-            result = connector._make_api_request(barcode)
-        elif sku and brand:
-            result = connector._make_api_request_sku_brand(sku, brand)
-        else:
-            result = {
-                'success': False,
-                'status': 'no_data',
-                'error': _('Product has no barcode and no SKU+brand fallback identifiers'),
-            }
-        if not result.get('success'):
-            return None, result
-        parsed = connector._parse_product_data(result.get('data'))
-        if not parsed:
-            return None, {
-                'success': False,
-                'error': _('Failed to parse Icecat data'),
-            }
-        return parsed, result
-
-    @api.model
-    def _build_icecat_product_name(self, brand, title):
-        brand = (brand or '').strip()
-        title = (title or '').strip()
-        if not title:
-            return ''
-        if brand and not title.lower().startswith(brand.lower()):
-            return f"{brand} {title}"
-        return title
-
-    @api.model
-    def _write_translated_product_texts(self, product, product_info, lang_code):
-        if not product_info:
-            return
-
-        name_value = self._build_icecat_product_name(product_info.get('brand'), product_info.get('title'))
-        write_vals = {}
-        if name_value:
-            write_vals['name'] = name_value
-
-        if product_info.get('description_long'):
-            write_vals['description_ecommerce'] = product_info['description_long']
-        elif product_info.get('description_short'):
-            write_vals['description_ecommerce'] = product_info['description_short']
-
-        if self._get_config_param('sync_description', 'True') == 'True':
-            if product_info.get('description_long'):
-                write_vals['description_sale'] = product_info['description_long']
-            elif product_info.get('description_short'):
-                write_vals['description_sale'] = product_info['description_short']
-
-        if write_vals:
-            product.with_context(lang=lang_code).write(write_vals)
 
     @api.model
     def sync_product(self, product, barcode=None):
@@ -760,45 +470,45 @@ class IcecatConnector(models.AbstractModel):
         :param barcode: EAN/GTIN code to use (optional, will be retrieved from variants if not provided)
         :return: dict with success status and message
         """
-        barcode, sku, brand = self._get_product_lookup_inputs(product, barcode=barcode)
-
-        if not barcode and not (sku and brand):
+        # Get barcode from parameter or from product variants
+        if not barcode:
+            barcode = product.product_variant_ids.filtered(lambda v: v.barcode)[:1].barcode
+        
+        if not barcode:
             return {
                 'success': False,
-                'error': _('Product has no barcode (EAN/GTIN) and no SKU+brand fallback')
+                'error': _('Product has no barcode (EAN/GTIN)')
             }
         
         # Mark as pending
         product.write({'icecat_sync_status': 'pending'})
         
-        # Fetch language-specific Icecat payloads
-        product_info_nl, api_result_nl = self._fetch_product_info_for_lang(barcode, 'nl_NL', sku=sku, brand=brand)
-
-        should_try_en = True
-        if api_result_nl.get('status') == 'no_data':
-            should_try_en = False
-
-        if should_try_en:
-            product_info_en, api_result_en = self._fetch_product_info_for_lang(barcode, 'en_US', sku=sku, brand=brand)
-        else:
-            product_info_en = None
-            api_result_en = {
-                'success': False,
-                'status': 'no_data',
-                'error': _('Skipping EN lookup after NL no_data result'),
-            }
-
-        product_info = product_info_nl or product_info_en
-
-        if not product_info:
-            api_error = api_result_nl if not api_result_nl.get('success') else api_result_en
+        # Make API request
+        api_result = self._make_api_request(barcode)
+        
+        if not api_result.get('success'):
+            # Update product with error status
             product.write({
-                'icecat_sync_status': api_error.get('status', 'error'),
-                'icecat_error_message': api_error.get('error', _('Failed to fetch Icecat data')),
+                'icecat_sync_status': api_result.get('status', 'error'),
+                'icecat_error_message': api_result.get('error', ''),
                 'icecat_last_sync': fields.Datetime.now(),
             })
-            return api_error
-
+            return api_result
+        
+        # Parse the data
+        product_info = self._parse_product_data(api_result['data'])
+        
+        if not product_info:
+            product.write({
+                'icecat_sync_status': 'error',
+                'icecat_error_message': _('Failed to parse Icecat data'),
+                'icecat_last_sync': fields.Datetime.now(),
+            })
+            return {
+                'success': False,
+                'error': _('Failed to parse Icecat data')
+            }
+        
         # Update product with Icecat data
         update_vals = {
             'icecat_sync_status': 'synced',
@@ -808,17 +518,34 @@ class IcecatConnector(models.AbstractModel):
             'icecat_error_message': False,
         }
         
+        # Update name if empty
+        # Always update product name with brand + title from Icecat
+        if product_info.get('title'):
+            brand = product_info.get('brand', '')
+            title = product_info.get('title', '')
+            if brand and title:
+                update_vals['name'] = f"{brand} {title}"
+            else:
+                update_vals['name'] = title
+        
+        # Always update description_ecommerce for website display
+        if product_info.get('description_long'):
+            update_vals['description_ecommerce'] = product_info['description_long']
+        elif product_info.get('description_short'):
+            update_vals['description_ecommerce'] = product_info['description_short']
+        
+        # Update description_sale if configured
+        if self._get_config_param('sync_description', 'True') == 'True':
+            if product_info.get('description_long'):
+                update_vals['description_sale'] = product_info['description_long']
+            elif product_info.get('description_short'):
+                update_vals['description_sale'] = product_info['description_short']
+        
         # Update brand if product_brand module is installed
         if 'product_brand_id' in self.env['product.template']._fields:
             brand_name = product_info.get('brand')
             if brand_name:
-                # DBW Value Normalizer: check alias before searching/creating
-                alias_brand = self.env['dbw.value.alias'].resolve('product.brand', brand_name)
-                if alias_brand:
-                    brand = alias_brand
-                    _logger.info(f"DBW Normalizer: brand '{brand_name}' → '{brand.name}'")
-                else:
-                    brand = self.env['product.brand'].search([('name', '=', brand_name)], limit=1)
+                brand = self.env['product.brand'].search([('name', '=', brand_name)], limit=1)
                 if not brand:
                     brand = self.env['product.brand'].create({'name': brand_name})
                 update_vals['product_brand_id'] = brand.id
@@ -851,58 +578,26 @@ class IcecatConnector(models.AbstractModel):
                         image_count += 1
                     else:
                         # Extra images
-                        try:
-                            self.env['product.image'].create({
-                                'product_tmpl_id': product.id,
-                                'image_1920': image_data,
-                                'name': image_info.get('title', f"Icecat Image {idx + 1}"),
-                                'sequence': idx,
-                            })
-                            image_count += 1
-                        except Exception as image_error:
-                            if '50.0Mpx' in str(image_error) or 'Te grote afbeelding' in str(image_error):
-                                _logger.warning("Oversized extra image skipped for product %s: %s", product.id, image_error)
-                            else:
-                                raise
+                        self.env['product.image'].create({
+                            'product_tmpl_id': product.id,
+                            'image_1920': image_data,
+                            'name': image_info.get('title', f"Icecat Image {idx + 1}"),
+                            'sequence': idx,
+                        })
+                        image_count += 1
 
         
-        # Write non-translatable updates first
-        try:
-            product.write(update_vals)
-        except Exception as write_error:
-            if '50.0Mpx' in str(write_error) or 'Te grote afbeelding' in str(write_error):
-                _logger.warning("Oversized main image skipped for product %s: %s", product.id, write_error)
-                update_vals.pop('image_1920', None)
-                product.write(update_vals)
-            else:
-                raise
-
-        # Write translated title/descriptions per language when available
-        if product_info_nl:
-            self._write_translated_product_texts(product, product_info_nl, 'nl_NL')
-        if product_info_en:
-            self._write_translated_product_texts(product, product_info_en, 'en_US')
-
+        # Write updates to product
+        product.write(update_vals)
+        
         # ALWAYS store raw specifications as JSON (source of truth)
         if product_info.get('specifications'):
             product.write({'icecat_specifications_raw': product_info['specifications']})
-            secondary_specs = []
-            secondary_lang = False
-            if product_info_nl and product_info_en:
-                if product_info is product_info_nl:
-                    secondary_specs = product_info_en.get('specifications', [])
-                    secondary_lang = 'en_US'
-                else:
-                    secondary_specs = product_info_nl.get('specifications', [])
-                    secondary_lang = 'nl_NL'
-            self._sync_product_attributes(
-                product,
-                product_info['specifications'],
-                secondary_specs=secondary_specs,
-                secondary_lang=secondary_lang,
-            )
+            
+            # Convert JSON specs to Odoo attributes for website display & filtering
+            self._sync_product_attributes(product, product_info['specifications'])
             _logger.info(f"Stored JSON and synced {len(product_info['specifications'])} specifications as Odoo attributes")
-
+        
         # Apply category mapping if we have an Icecat category
         if product_info.get('category'):
             category_mapping = self.env['icecat.category.mapping'].apply_mapping(

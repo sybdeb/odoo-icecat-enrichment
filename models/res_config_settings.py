@@ -42,6 +42,12 @@ class ResConfigSettings(models.TransientModel):
         default=100,
         help='Number of products to update per batch (runs at night)'
     )
+    icecat_backfill_batch_size = fields.Integer(
+        string='Batchgrootte omschrijving backfill',
+        config_parameter='product_content_verrijking.backfill_batch_size',
+        default=200,
+        help='Aantal producten per run voor het aanvullen van ontbrekende beschrijvingen'
+    )
     icecat_auto_sync_enabled = fields.Boolean(
         string='Enable Auto Sync',
         config_parameter='product_content_verrijking.auto_sync_enabled',
@@ -114,14 +120,38 @@ class ResConfigSettings(models.TransientModel):
         default='days',
         help='Interval type for products update'
     )
+
+    icecat_cron_backfill_descriptions_active = fields.Boolean(
+        string='Automatische omschrijving backfill',
+        help='Planmatige aanvulling voor producten zonder e-commerce beschrijving'
+    )
+    icecat_cron_backfill_descriptions_interval = fields.Integer(
+        string='Backfill interval',
+        default=4,
+        help='Hoe vaak de backfill voor ontbrekende beschrijvingen draait'
+    )
+    icecat_cron_backfill_descriptions_interval_type = fields.Selection([
+        ('minutes', 'Minutes'),
+        ('hours', 'Hours'),
+        ('days', 'Days'),
+    ], string='Backfill intervaltype',
+        default='hours',
+        help='Eenheid van het backfill interval (minuten, uren of dagen)'
+    )
     
     @api.model
     def get_values(self):
         res = super(ResConfigSettings, self).get_values()
+        ICP = self.env['ir.config_parameter'].sudo()
+
+        res.update({
+            'icecat_backfill_batch_size': int(ICP.get_param('product_content_verrijking.backfill_batch_size', default=200)),
+        })
         
         # Get cron records
-        cron_new = self.env.ref('product_content_verrijking.ir_cron_sync_new_products', raise_if_not_found=False)
-        cron_update = self.env.ref('product_content_verrijking.ir_cron_update_products', raise_if_not_found=False)
+        cron_new = self.env.ref('icecat_product_enrichment.ir_cron_sync_new_products', raise_if_not_found=False)
+        cron_update = self.env.ref('icecat_product_enrichment.ir_cron_update_products', raise_if_not_found=False)
+        cron_backfill = self.env.ref('icecat_product_enrichment.ir_cron_backfill_missing_descriptions', raise_if_not_found=False)
         
         if cron_new:
             res.update({
@@ -136,15 +166,25 @@ class ResConfigSettings(models.TransientModel):
                 'icecat_cron_update_products_interval': cron_update.interval_number,
                 'icecat_cron_update_products_interval_type': cron_update.interval_type,
             })
+
+        if cron_backfill:
+            res.update({
+                'icecat_cron_backfill_descriptions_active': cron_backfill.active,
+                'icecat_cron_backfill_descriptions_interval': cron_backfill.interval_number,
+                'icecat_cron_backfill_descriptions_interval_type': cron_backfill.interval_type,
+            })
         
         return res
     
     def set_values(self):
         super(ResConfigSettings, self).set_values()
+        ICP = self.env['ir.config_parameter'].sudo()
+        ICP.set_param('product_content_verrijking.backfill_batch_size', int(self.icecat_backfill_batch_size or 200))
         
         # Update cron records
-        cron_new = self.env.ref('product_content_verrijking.ir_cron_sync_new_products', raise_if_not_found=False)
-        cron_update = self.env.ref('product_content_verrijking.ir_cron_update_products', raise_if_not_found=False)
+        cron_new = self.env.ref('icecat_product_enrichment.ir_cron_sync_new_products', raise_if_not_found=False)
+        cron_update = self.env.ref('icecat_product_enrichment.ir_cron_update_products', raise_if_not_found=False)
+        cron_backfill = self.env.ref('icecat_product_enrichment.ir_cron_backfill_missing_descriptions', raise_if_not_found=False)
         
         if cron_new:
             cron_new.write({
@@ -158,5 +198,12 @@ class ResConfigSettings(models.TransientModel):
                 'active': self.icecat_cron_update_products_active,
                 'interval_number': self.icecat_cron_update_products_interval,
                 'interval_type': self.icecat_cron_update_products_interval_type,
+            })
+
+        if cron_backfill:
+            cron_backfill.write({
+                'active': self.icecat_cron_backfill_descriptions_active,
+                'interval_number': self.icecat_cron_backfill_descriptions_interval,
+                'interval_type': self.icecat_cron_backfill_descriptions_interval_type,
             })
 

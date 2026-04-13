@@ -15,7 +15,6 @@
                             string="Sync with Icecat"
                             class="oe_stat_button"
                             icon="fa-refresh"
-                            invisible="not barcode"
                             help="Synchronize this product with Icecat database"/>
                 </xpath>
                 

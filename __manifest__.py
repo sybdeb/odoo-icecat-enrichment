@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'DBW Product Enrichment',
-    'version': '19.0.1.1.1',
+    'version': '19.0.1.1.4',
     'category': 'Sales/Product',
     'summary': 'Enrich products with supplier data (Icecat, etc.) based on EAN/GTIN',
     'description': """
@@ -23,14 +23,16 @@ Batch Processing:
 * New products: 10 products per batch, can run during the day
 * Updates: Larger batches for night-time processing
     """,
-    'author': 'Nerbys',
-    'website': 'https://www.nerbys.nl',
+    'author': 'De Bruijn Webworks',
+    'website': 'https://dbwebworks.nl',
+    'support': 'support@nerbys.nl',
     'license': 'LGPL-3',
     'depends': [
         'base',
         'product',
         'website',
         'website_sale',
+        'dbw_odoo_base_v2',
     ],
     'data': [
         'security/ir.model.access.csv',

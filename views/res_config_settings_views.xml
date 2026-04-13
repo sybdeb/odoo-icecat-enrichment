@@ -188,6 +188,21 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane"/>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_backfill_batch_size"/>
+                                    <div class="text-muted">
+                                        Aantal producten zonder beschrijving dat per backfill-run wordt verwerkt
+                                    </div>
+                                    <div class="content-group">
+                                        <div class="mt16">
+                                            <field name="icecat_backfill_batch_size" class="oe_inline"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <h2>Scheduled Jobs (Cron)</h2>
@@ -225,6 +240,25 @@
                                             <label for="icecat_cron_update_products_interval" string="Run every" class="col-lg-3 o_light_label"/>
                                             <field name="icecat_cron_update_products_interval" class="oe_inline col-lg-2"/>
                                             <field name="icecat_cron_update_products_interval_type" class="oe_inline col-lg-4"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="icecat_cron_backfill_descriptions_active"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="icecat_cron_backfill_descriptions_active" string="Descriptions Backfill"/>
+                                    <div class="text-muted">
+                                        Probeer Icecat-sync automatisch opnieuw voor producten zonder e-commerce beschrijving
+                                    </div>
+                                    <div class="content-group" invisible="not icecat_cron_backfill_descriptions_active">
+                                        <div class="row mt16">
+                                            <label for="icecat_cron_backfill_descriptions_interval" string="Draai elke" class="col-lg-3 o_light_label"/>
+                                            <field name="icecat_cron_backfill_descriptions_interval" class="oe_inline col-lg-2"/>
+                                            <field name="icecat_cron_backfill_descriptions_interval_type" class="oe_inline col-lg-4"/>
                                         </div>
                                     </div>
                                 </div>

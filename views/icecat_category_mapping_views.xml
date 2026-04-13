@@ -79,5 +79,12 @@
                   action="action_icecat_category_mapping"
                   sequence="20"/>
 
+        <!-- Ook zichtbaar onder DBW → Configuration -->
+        <menuitem id="menu_dbw_icecat_category_mapping"
+                  name="Icecat Category Mappings"
+                  parent="dbw_odoo_base_v2.menu_dbw_configuration"
+                  action="action_icecat_category_mapping"
+                  sequence="30"/>
+
     </data>
 </odoo>

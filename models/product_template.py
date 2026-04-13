@@ -89,12 +89,25 @@ class ProductTemplate(models.Model):
         self.ensure_one()
         connector = self.env['icecat.connector']
         
-        # Get barcode from first variant that has one
-        barcode = self.product_variant_ids.filtered(lambda v: v.barcode)[:1].barcode
-        if not barcode:
-            raise UserError(_('Product must have a barcode (EAN/GTIN) to sync with Icecat.'))
-        
-        result = connector.sync_product(self, barcode)
+        template_barcode = (getattr(self, 'barcode', False) or '').strip()
+        variant_with_barcode = self.product_variant_ids.filtered(lambda v: v.barcode)[:1]
+        barcode = template_barcode or ((variant_with_barcode.barcode or '').strip() if variant_with_barcode else '')
+
+        sku = (self.default_code or '').strip()
+        if not sku:
+            variant_with_sku = self.product_variant_ids.filtered(lambda v: v.default_code)[:1]
+            sku = (variant_with_sku.default_code or '').strip() if variant_with_sku else ''
+
+        brand_name = ''
+        if 'product_brand_id' in self._fields and self.product_brand_id:
+            brand_name = (self.product_brand_id.name or '').strip()
+        if not brand_name:
+            brand_name = (self.icecat_brand or '').strip()
+
+        if not barcode and not (sku and brand_name):
+            raise UserError(_('Product needs a barcode (EAN/GTIN) or SKU+brand for Icecat sync.'))
+
+        result = connector.sync_product(self, barcode or None)
         
         if result.get('success'):
             return {
