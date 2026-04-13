@@ -90,6 +90,13 @@ class IcecatSyncWizard(models.TransientModel):
         """Get domain based on sync type"""
         return [('id', 'in', self._get_products_to_sync().ids)]
 
+    def _get_log_sync_type(self):
+        if self.sync_type == 'all_not_synced':
+            return 'new'
+        if self.sync_type == 'all_outdated':
+            return 'update'
+        return 'manual'
+
     def action_sync_products(self):
         """Execute the bulk sync"""
         self.ensure_one()
@@ -125,31 +132,72 @@ class IcecatSyncWizard(models.TransientModel):
         
         # Perform sync
         IceCatConnector = self.env['icecat.connector']
+        SyncLog = self.env['icecat.sync.log']
+
+        sync_log = SyncLog.create({
+            'sync_type': self._get_log_sync_type(),
+            'total_products': len(products),
+            'status': 'running',
+            'synced_count': 0,
+            'error_count': 0,
+            'no_data_count': 0,
+        })
+        self.env.cr.commit()
         
         synced_count = 0
         error_count = 0
         no_data_count = 0
         
-        for start in range(0, len(products), chunk_size):
-            batch_products = products[start:start + chunk_size]
-            for product in batch_products:
-                try:
-                    result = IceCatConnector.sync_product(product)
-                    if result.get('success'):
-                        synced_count += 1
-                    elif product.icecat_sync_status == 'no_data':
-                        no_data_count += 1
-                    else:
+        try:
+            for start in range(0, len(products), chunk_size):
+                batch_products = products[start:start + chunk_size]
+                for product in batch_products:
+                    sync_log.write({'product_ids': [(4, product.id)]})
+                    try:
+                        result = IceCatConnector.sync_product(product)
+                        if result.get('success'):
+                            synced_count += 1
+                        elif product.icecat_sync_status == 'no_data':
+                            no_data_count += 1
+                        else:
+                            error_count += 1
+                            sync_log.write({'error_product_ids': [(4, product.id)]})
+                    except Exception as e:
                         error_count += 1
-                except Exception as e:
-                    error_count += 1
-                    product.write({
-                        'icecat_sync_status': 'error',
-                        'icecat_error_message': str(e),
-                    })
+                        product.write({
+                            'icecat_sync_status': 'error',
+                            'icecat_error_message': str(e),
+                        })
+                        sync_log.write({'error_product_ids': [(4, product.id)]})
 
-            # Commit per chunk to keep transactions manageable on large runs
+                sync_log.write({
+                    'synced_count': synced_count,
+                    'error_count': error_count,
+                    'no_data_count': no_data_count,
+                })
+
+                # Commit per chunk to keep transactions manageable on large runs
+                self.env.cr.commit()
+
+            sync_log.write({
+                'synced_count': synced_count,
+                'error_count': error_count,
+                'no_data_count': no_data_count,
+                'status': 'completed',
+                'end_time': fields.Datetime.now(),
+            })
             self.env.cr.commit()
+        except Exception as e:
+            sync_log.write({
+                'synced_count': synced_count,
+                'error_count': error_count,
+                'no_data_count': no_data_count,
+                'status': 'failed',
+                'error_message': str(e),
+                'end_time': fields.Datetime.now(),
+            })
+            self.env.cr.commit()
+            raise
         
         # Show result message
         processed_count = len(products)
