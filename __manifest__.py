@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'DBW Product Enrichment',
-    'version': '19.0.1.1.4',
+    'version': '19.0.1.1.5',
     'category': 'Sales/Product',
     'summary': 'Enrich products with supplier data (Icecat, etc.) based on EAN/GTIN',
     'description': """
@@ -37,6 +37,7 @@ Batch Processing:
     'data': [
         'security/ir.model.access.csv',
         'data/ir_cron_data.xml',
+        'data/category_recovery_data.xml',
         'views/res_config_settings_views.xml',
         'views/product_template_views.xml',
         'views/icecat_sync_log_views.xml',

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <function model="icecat.category.mapping" name="run_upgrade_category_recovery"/>
+    </data>
+</odoo>

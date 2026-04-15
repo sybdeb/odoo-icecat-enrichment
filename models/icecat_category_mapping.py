@@ -4,6 +4,7 @@ import re
 from difflib import SequenceMatcher
 
 from odoo import api, fields, models, _
+from odoo.exceptions import UserError
 
 
 class IcecatCategoryMapping(models.Model):
@@ -41,6 +42,50 @@ class IcecatCategoryMapping(models.Model):
         ('icecat_category_unique', 'unique(icecat_category)', 
          'This Icecat category already has a mapping!'),
     ]
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._guard_mass_same_website_category()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        if 'odoo_category_id' in vals and vals.get('odoo_category_id'):
+            self._guard_mass_same_website_category()
+        return result
+
+    def _guard_mass_same_website_category(self):
+        """Prevent accidental mass overwrite to one website category."""
+        if self.env.context.get('icecat_allow_mass_category_write'):
+            return
+
+        total_mappings = self.search_count([('icecat_category', '!=', False)])
+        if total_mappings < 20:
+            return
+
+        grouped = self.read_group(
+            [('odoo_category_id', '!=', False)],
+            ['odoo_category_id'],
+            ['odoo_category_id'],
+            lazy=False,
+        )
+        grouped = [g for g in grouped if g.get('odoo_category_id')]
+        if not grouped:
+            return
+
+        dominant = max(grouped, key=lambda g: g['odoo_category_id_count'])
+        dominant_count = dominant['odoo_category_id_count']
+        if dominant_count >= int(total_mappings * 0.8):
+            category_name = dominant['odoo_category_id'][1]
+            raise UserError(_(
+                'Blocked: %(count)s/%(total)s mappings point to "%(category)s". '
+                'This looks like an accidental bulk overwrite.'
+            ) % {
+                'count': dominant_count,
+                'total': total_mappings,
+                'category': category_name,
+            })
 
     @api.depends('icecat_category')
     def _compute_product_count(self):
@@ -504,7 +549,8 @@ class IcecatCategoryMapping(models.Model):
             values['parent_id'] = parent.id
         return self.env['product.public.category'].create(values)
 
-    def action_rebuild_website_category_structure(self):
+    @api.model
+    def _run_rebuild_website_category_structure(self):
         """
         Rebuild website category structure from Icecat categories.
 
@@ -513,19 +559,13 @@ class IcecatCategoryMapping(models.Model):
         - Rewrites mapping website categories to rebuilt leaf nodes
         - Reapplies mappings to products
         """
-        self.ensure_one()
-
         mappings = self.search([('icecat_category', '!=', False)])
         if not mappings:
             return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Nothing to rebuild'),
-                    'message': _('No Icecat category mappings found.'),
-                    'type': 'warning',
-                    'sticky': False,
-                }
+                'rebuilt_mappings': 0,
+                'created_categories': 0,
+                'updated_products': 0,
+                'status': 'no_data',
             }
 
         # Snapshot currently managed website categories so old/wrong mapped
@@ -562,7 +602,7 @@ class IcecatCategoryMapping(models.Model):
                     created_categories += 1
                 parent = leaf
 
-            mapping.write({'odoo_category_id': leaf.id})
+            mapping.with_context(icecat_allow_mass_category_write=True).write({'odoo_category_id': leaf.id})
             rebuilt_mappings += 1
 
             products = self.env['product.template'].search([
@@ -579,6 +619,28 @@ class IcecatCategoryMapping(models.Model):
                     updated_products += 1
 
         return {
+            'rebuilt_mappings': rebuilt_mappings,
+            'created_categories': created_categories,
+            'updated_products': updated_products,
+            'status': 'done',
+        }
+
+    def action_rebuild_website_category_structure(self):
+        self.ensure_one()
+        result = self._run_rebuild_website_category_structure()
+        if result.get('status') == 'no_data':
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing to rebuild'),
+                    'message': _('No Icecat category mappings found.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
@@ -586,14 +648,49 @@ class IcecatCategoryMapping(models.Model):
                 'message': _(
                     'Rebuilt %(mappings)s mappings, created %(categories)s categories, updated %(products)s products under "Icecat (Rebuilt)".'
                 ) % {
-                    'mappings': rebuilt_mappings,
-                    'categories': created_categories,
-                    'products': updated_products,
+                    'mappings': result.get('rebuilt_mappings', 0),
+                    'categories': result.get('created_categories', 0),
+                    'products': result.get('updated_products', 0),
                 },
                 'type': 'success',
                 'sticky': True,
             }
         }
+
+    @api.model
+    def run_upgrade_category_recovery(self):
+        """Run automatic recovery on module upgrade when anomaly is detected."""
+        mappings = self.search([('icecat_category', '!=', False)])
+        if not mappings:
+            return True
+
+        total_mapped = self.search_count([('odoo_category_id', '!=', False)])
+        anomaly_detected = False
+        if total_mapped:
+            grouped = self.read_group(
+                [('odoo_category_id', '!=', False)],
+                ['odoo_category_id'],
+                ['odoo_category_id'],
+                lazy=False,
+            )
+            grouped = [g for g in grouped if g.get('odoo_category_id')]
+            if grouped:
+                dominant = max(grouped, key=lambda g: g['odoo_category_id_count'])
+                if dominant['odoo_category_id_count'] >= int(total_mapped * 0.5):
+                    anomaly_detected = True
+
+        missing_count = self.search_count([
+            ('icecat_category', '!=', False),
+            ('odoo_category_id', '=', False),
+        ])
+        if missing_count:
+            anomaly_detected = True
+
+        if not anomaly_detected:
+            return True
+
+        self._run_rebuild_website_category_structure()
+        return True
 
     def action_archive_unused_wrong_categories(self):
         """
