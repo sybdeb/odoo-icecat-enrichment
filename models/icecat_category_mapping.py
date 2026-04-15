@@ -108,23 +108,40 @@ class IcecatCategoryMapping(models.Model):
         if not mapping:
             return {}
         
+        if not product:
+            return {}
+
+        return mapping._prepare_product_mapping_vals(product)
+
+    def _get_managed_public_category_ids(self):
+        """Return website categories managed by Icecat mappings."""
+        self.ensure_one()
+        return set(
+            self.search([('odoo_category_id', '!=', False)]).mapped('odoo_category_id').ids
+        )
+
+    def _prepare_product_mapping_vals(self, product):
+        """Build write values for one product based on this mapping."""
+        self.ensure_one()
+
         vals = {}
-        
-        # If Google category is set, create hierarchies automatically
-        
-        # Set website category
-        if mapping.odoo_category_id:
-            vals['public_categ_ids'] = [(4, mapping.odoo_category_id.id)]
-        
-        # Set internal category
-        if mapping.internal_category_id:
-            vals['categ_id'] = mapping.internal_category_id.id
-        
-        
-        # Set website published
-        if mapping.auto_publish:
+
+        # Website category: replace only Icecat-managed categories,
+        # keep manually assigned non-Icecat website categories untouched.
+        if self.odoo_category_id and 'public_categ_ids' in product._fields:
+            managed_ids = self._get_managed_public_category_ids()
+            current_ids = set(product.public_categ_ids.ids)
+            kept_ids = list(current_ids - managed_ids)
+            vals['public_categ_ids'] = [(6, 0, kept_ids + [self.odoo_category_id.id])]
+
+        # Internal category
+        if self.internal_category_id and 'categ_id' in product._fields:
+            vals['categ_id'] = self.internal_category_id.id
+
+        # Website publish
+        if self.auto_publish and 'is_published' in product._fields:
             vals['is_published'] = True
-        
+
         return vals
 
     def action_apply_to_products(self):
@@ -148,18 +165,20 @@ class IcecatCategoryMapping(models.Model):
                 }
             }
         
-        # Apply mapping to all products
-        vals = self.apply_mapping(products[0], self.icecat_category)
-        if vals:
-            # Remove the single product specific update and apply to all
-            products.write(vals)
+        # Apply mapping per product (ensures safe replacement behavior for website categories)
+        applied_count = 0
+        for product in products:
+            vals = self._prepare_product_mapping_vals(product)
+            if vals:
+                product.write(vals)
+                applied_count += 1
         
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('Mapping applied to %d products.') % len(products),
+                'message': _('Mapping applied to %d products (category: %s).') % (applied_count, self.icecat_category),
                 'type': 'success',
                 'sticky': False,
             }
