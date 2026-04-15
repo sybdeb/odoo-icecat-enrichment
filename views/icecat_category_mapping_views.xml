@@ -34,6 +34,12 @@
                                 string="Apply to All Products" 
                                 class="btn-primary"
                                 icon="fa-refresh"/>
+                        <button name="action_rebuild_website_category_structure"
+                            type="object"
+                            string="Recovery: Rebuild Category Structure"
+                            class="btn-secondary"
+                            confirm="This rebuilds website categories from Icecat categories under 'Icecat (Rebuilt)' and reapplies mappings to products. Continue?"
+                            icon="fa-sitemap"/>
                         <button name="action_restore_website_categories"
                             type="object"
                             string="Recovery: Restore Website Categories"

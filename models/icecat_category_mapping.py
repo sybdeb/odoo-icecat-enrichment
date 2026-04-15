@@ -466,3 +466,121 @@ class IcecatCategoryMapping(models.Model):
                 'sticky': True,
             }
         }
+
+    @api.model
+    def _split_icecat_category_path(self, category_name):
+        """Split Icecat category into hierarchy parts when possible."""
+        raw = (category_name or '').strip()
+        if not raw:
+            return []
+
+        if ' > ' in raw:
+            parts = [part.strip() for part in raw.split('>') if part.strip()]
+            if parts:
+                return parts
+
+        if ' / ' in raw:
+            parts = [part.strip() for part in raw.split('/') if part.strip()]
+            if parts:
+                return parts
+
+        return [raw]
+
+    @api.model
+    def _get_or_create_public_category_with_parent(self, name, parent=False):
+        """Get or create product.public.category by name + parent."""
+        domain = [('name', '=', name)]
+        if parent:
+            domain.append(('parent_id', '=', parent.id))
+        else:
+            domain.append(('parent_id', '=', False))
+
+        category = self.env['product.public.category'].search(domain, limit=1)
+        if category:
+            return category
+
+        values = {'name': name}
+        if parent:
+            values['parent_id'] = parent.id
+        return self.env['product.public.category'].create(values)
+
+    def action_rebuild_website_category_structure(self):
+        """
+        Rebuild website category structure from Icecat categories.
+
+        - Creates/uses root category 'Icecat (Rebuilt)'
+        - Builds hierarchy from icecat_category text
+        - Rewrites mapping website categories to rebuilt leaf nodes
+        - Reapplies mappings to products
+        """
+        self.ensure_one()
+
+        mappings = self.search([('icecat_category', '!=', False)])
+        if not mappings:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing to rebuild'),
+                    'message': _('No Icecat category mappings found.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        root = self._get_or_create_public_category_with_parent('Icecat (Rebuilt)', parent=False)
+
+        rebuilt_mappings = 0
+        created_categories = 0
+        updated_products = 0
+
+        for mapping in mappings:
+            parts = self._split_icecat_category_path(mapping.icecat_category)
+            if not parts:
+                continue
+
+            parent = root
+            leaf = root
+            for part in parts:
+                existing = self.env['product.public.category'].search([
+                    ('name', '=', part),
+                    ('parent_id', '=', parent.id),
+                ], limit=1)
+                if existing:
+                    leaf = existing
+                else:
+                    leaf = self.env['product.public.category'].create({
+                        'name': part,
+                        'parent_id': parent.id,
+                    })
+                    created_categories += 1
+                parent = leaf
+
+            mapping.write({'odoo_category_id': leaf.id})
+            rebuilt_mappings += 1
+
+            products = self.env['product.template'].search([
+                ('icecat_category', '=', mapping.icecat_category)
+            ])
+            for product in products:
+                vals = mapping._prepare_product_mapping_vals(product)
+                if vals:
+                    product.write(vals)
+                    updated_products += 1
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Rebuild completed'),
+                'message': _(
+                    'Rebuilt %(mappings)s mappings, created %(categories)s categories, updated %(products)s products under "Icecat (Rebuilt)".'
+                ) % {
+                    'mappings': rebuilt_mappings,
+                    'categories': created_categories,
+                    'products': updated_products,
+                },
+                'type': 'success',
+                'sticky': True,
+            }
+        }
