@@ -34,6 +34,12 @@
                                 string="Apply to All Products" 
                                 class="btn-primary"
                                 icon="fa-refresh"/>
+                        <button name="action_reset_dominant_website_category"
+                                type="object"
+                                string="Recovery: Reset Dominant Website Category"
+                                class="btn-secondary"
+                                confirm="This will clear the dominant website category from mappings and linked products. Continue?"
+                                icon="fa-shield"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">

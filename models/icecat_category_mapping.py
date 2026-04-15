@@ -219,3 +219,95 @@ class IcecatCategoryMapping(models.Model):
                 'sticky': False,
             }
         }
+
+    def action_reset_dominant_website_category(self):
+        """
+        Recovery action:
+        - Detect dominant website category across mappings
+        - Clear it from affected mappings
+        - Remove it from products linked to those Icecat categories
+        """
+        self.ensure_one()
+
+        mapped_domain = [('odoo_category_id', '!=', False)]
+        total_mapped = self.search_count(mapped_domain)
+        if not total_mapped:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing to reset'),
+                    'message': _('No mappings with a Website Category were found.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        grouped = self.read_group(mapped_domain, ['odoo_category_id'], ['odoo_category_id'], lazy=False)
+        grouped = [g for g in grouped if g.get('odoo_category_id')]
+        if not grouped:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing to reset'),
+                    'message': _('No valid Website Category values found in mappings.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        dominant = max(grouped, key=lambda g: g['odoo_category_id_count'])
+        dominant_category_id = dominant['odoo_category_id'][0]
+        dominant_category_name = dominant['odoo_category_id'][1]
+        dominant_count = dominant['odoo_category_id_count']
+
+        # Safety: only run if dominance is significant, to avoid accidental cleanup.
+        if dominant_count < int(total_mapped * 0.5):
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Reset blocked'),
+                    'message': _(
+                        'No dominant category found (top: %(top)s/%(total)s). Recovery reset only runs when one category dominates at least 50%%.'
+                    ) % {
+                        'top': dominant_count,
+                        'total': total_mapped,
+                    },
+                    'type': 'warning',
+                    'sticky': True,
+                }
+            }
+
+        affected_mappings = self.search([('odoo_category_id', '=', dominant_category_id)])
+        affected_icecat_categories = affected_mappings.mapped('icecat_category')
+
+        # 1) Reset mapping values (keep internal categories untouched)
+        affected_mappings.write({'odoo_category_id': False})
+
+        # 2) Remove dominant website category from affected products
+        product_domain = [
+            ('icecat_category', 'in', affected_icecat_categories),
+            ('public_categ_ids', 'in', [dominant_category_id]),
+        ]
+        affected_products = self.env['product.template'].search(product_domain)
+        if affected_products:
+            affected_products.write({'public_categ_ids': [(3, dominant_category_id)]})
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Recovery completed'),
+                'message': _(
+                    'Reset website category "%(category)s" in %(mappings)s mappings and removed it from %(products)s products.'
+                ) % {
+                    'category': dominant_category_name,
+                    'mappings': len(affected_mappings),
+                    'products': len(affected_products),
+                },
+                'type': 'success',
+                'sticky': True,
+            }
+        }
