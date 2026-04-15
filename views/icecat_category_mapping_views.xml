@@ -52,6 +52,12 @@
                                 class="btn-secondary"
                                 confirm="This will clear the dominant website category from mappings and linked products. Continue?"
                                 icon="fa-shield"/>
+                        <button name="action_archive_unused_wrong_categories"
+                            type="object"
+                            string="Recovery: Archive Unused Wrong Categories"
+                            class="btn-secondary"
+                            confirm="This archives likely wrong website categories only when no products and no mappings still use them. Continue?"
+                            icon="fa-archive"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">

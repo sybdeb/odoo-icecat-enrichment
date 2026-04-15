@@ -594,3 +594,96 @@ class IcecatCategoryMapping(models.Model):
                 'sticky': True,
             }
         }
+
+    def action_archive_unused_wrong_categories(self):
+        """
+        Archive likely wrong website categories when they are no longer used.
+
+        Targets:
+        - Explicit known wrong category names (e.g. Randapparatuur / Laders)
+        - Previously dominant mapping category
+
+        Safety:
+        - Only archive when category is not used on any product
+        - Only archive when category is not referenced by any mapping
+        """
+        self.ensure_one()
+
+        category_model = self.env['product.public.category']
+        product_model = self.env['product.template']
+
+        candidates = category_model.browse()
+
+        explicit_candidates = category_model.search([
+            ('name', 'ilike', 'Randapparatuur / Laders')
+        ])
+        candidates |= explicit_candidates
+
+        mapped_domain = [('odoo_category_id', '!=', False)]
+        grouped = self.read_group(mapped_domain, ['odoo_category_id'], ['odoo_category_id'], lazy=False)
+        grouped = [g for g in grouped if g.get('odoo_category_id')]
+        if grouped:
+            dominant = max(grouped, key=lambda g: g['odoo_category_id_count'])
+            dominant_category = category_model.browse(dominant['odoo_category_id'][0])
+            candidates |= dominant_category
+
+        if not candidates:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('No candidate categories'),
+                    'message': _('No likely wrong website categories were found.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        archived = []
+        skipped = []
+
+        for category in candidates:
+            products_using = product_model.search_count([('public_categ_ids', 'in', [category.id])])
+            mappings_using = self.search_count([('odoo_category_id', '=', category.id)])
+
+            if products_using == 0 and mappings_using == 0:
+                if 'active' in category._fields:
+                    category.write({'active': False})
+                else:
+                    new_name = category.name or ''
+                    if not new_name.startswith('[ARCHIVED] '):
+                        category.write({'name': '[ARCHIVED] %s' % new_name})
+                archived.append(category.display_name)
+            else:
+                skipped.append('%s (products=%s, mappings=%s)' % (
+                    category.display_name,
+                    products_using,
+                    mappings_using,
+                ))
+
+        if not archived:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing archived'),
+                    'message': _('All candidate categories are still in use: %s') % '; '.join(skipped[:5]),
+                    'type': 'warning',
+                    'sticky': True,
+                }
+            }
+
+        message = _('Archived %s category/categorieën: %s') % (len(archived), ', '.join(archived[:8]))
+        if skipped:
+            message += _(' | Skipped in-use: %s') % '; '.join(skipped[:5])
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Cleanup completed'),
+                'message': message,
+                'type': 'success',
+                'sticky': True,
+            }
+        }
