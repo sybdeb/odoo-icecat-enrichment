@@ -18,6 +18,24 @@
                             string="Apply to Products" 
                             class="btn-primary"
                             icon="fa-refresh"/>
+                    <button name="action_rebuild_website_category_structure"
+                        type="object"
+                        string="Rebuild Structure"
+                        class="btn-secondary"
+                        icon="fa-sitemap"
+                        confirm="This rebuilds website categories from Icecat categories under 'Icecat (Rebuilt)' and reapplies mappings. Continue?"/>
+                    <button name="action_restore_website_categories"
+                        type="object"
+                        string="Restore Categories"
+                        class="btn-secondary"
+                        icon="fa-magic"
+                        confirm="This restores missing website categories by matching Icecat categories and reapplies mappings. Continue?"/>
+                    <button name="action_archive_unused_wrong_categories"
+                        type="object"
+                        string="Archive Wrong"
+                        class="btn-secondary"
+                        icon="fa-archive"
+                        confirm="This archives likely wrong categories only if no products and mappings use them. Continue?"/>
                 </list>
             </field>
         </record>
