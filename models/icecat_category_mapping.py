@@ -147,6 +147,42 @@ class IcecatCategoryMapping(models.Model):
     def action_apply_to_products(self):
         """Apply this mapping to all products with this Icecat category"""
         self.ensure_one()
+
+        if not self.odoo_category_id and not self.internal_category_id:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('No target category configured'),
+                    'message': _('Set a Website Category and/or Internal Category before applying to products.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        # Safety check: block mass-apply when one website category dominates almost all mappings.
+        # This usually indicates accidental bulk edits in the mapping table.
+        if self.odoo_category_id:
+            total_mapped = self.search_count([('odoo_category_id', '!=', False)])
+            same_category_count = self.search_count([('odoo_category_id', '=', self.odoo_category_id.id)])
+            if total_mapped >= 20 and same_category_count >= int(total_mapped * 0.8):
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Safety block active'),
+                        'message': _(
+                            'Apply blocked: %(same)s/%(total)s mappings point to "%(category)s". '
+                            'First verify and correct Category Mappings to avoid mass misassignment.'
+                        ) % {
+                            'same': same_category_count,
+                            'total': total_mapped,
+                            'category': self.odoo_category_id.display_name,
+                        },
+                        'type': 'danger',
+                        'sticky': True,
+                    }
+                }
         
         # Find all products with this Icecat category
         products = self.env['product.template'].search([

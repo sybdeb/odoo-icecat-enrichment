@@ -7,7 +7,7 @@
             <field name="name">icecat.category.mapping.tree</field>
             <field name="model">icecat.category.mapping</field>
             <field name="arch" type="xml">
-                <list string="Icecat Category Mappings" editable="bottom">
+                <list string="Icecat Category Mappings">
                     <field name="icecat_category"/>
                     <field name="product_count"/>
                     <field name="internal_category_id"/>
