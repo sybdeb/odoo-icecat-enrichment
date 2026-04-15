@@ -528,6 +528,12 @@ class IcecatCategoryMapping(models.Model):
                 }
             }
 
+        # Snapshot currently managed website categories so old/wrong mapped
+        # categories are removed from products during rebuild.
+        old_managed_category_ids = set(
+            self.search([('odoo_category_id', '!=', False)]).mapped('odoo_category_id').ids
+        )
+
         root = self._get_or_create_public_category_with_parent('Icecat (Rebuilt)', parent=False)
 
         rebuilt_mappings = 0
@@ -564,6 +570,10 @@ class IcecatCategoryMapping(models.Model):
             ])
             for product in products:
                 vals = mapping._prepare_product_mapping_vals(product)
+                if 'public_categ_ids' in product._fields:
+                    current_ids = set(product.public_categ_ids.ids)
+                    kept_ids = list(current_ids - old_managed_category_ids)
+                    vals['public_categ_ids'] = [(6, 0, kept_ids + [leaf.id])]
                 if vals:
                     product.write(vals)
                     updated_products += 1
