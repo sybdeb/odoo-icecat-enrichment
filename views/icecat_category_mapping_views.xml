@@ -34,6 +34,12 @@
                                 string="Apply to All Products" 
                                 class="btn-primary"
                                 icon="fa-refresh"/>
+                        <button name="action_restore_website_categories"
+                            type="object"
+                            string="Recovery: Restore Website Categories"
+                            class="btn-secondary"
+                            confirm="This tries to restore missing website categories from Icecat category names and reapplies them to products. Continue?"
+                            icon="fa-magic"/>
                         <button name="action_reset_dominant_website_category"
                                 type="object"
                                 string="Recovery: Reset Dominant Website Category"

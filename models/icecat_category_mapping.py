@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import re
+from difflib import SequenceMatcher
+
 from odoo import api, fields, models, _
 
 
@@ -306,6 +309,144 @@ class IcecatCategoryMapping(models.Model):
                     'category': dominant_category_name,
                     'mappings': len(affected_mappings),
                     'products': len(affected_products),
+                },
+                'type': 'success',
+                'sticky': True,
+            }
+        }
+
+    @api.model
+    def _normalize_category_text(self, text):
+        value = (text or '').strip().lower()
+        value = re.sub(r'\s+', ' ', value)
+        return value
+
+    @api.model
+    def _find_best_public_category(self, icecat_category, public_categories):
+        """Find best matching website category for an Icecat category string."""
+        normalized_target = self._normalize_category_text(icecat_category)
+        if not normalized_target:
+            return self.env['product.public.category']
+
+        # 1) Exact name match (case-insensitive)
+        exact = public_categories.filtered(
+            lambda c: self._normalize_category_text(c.name) == normalized_target
+        )
+        if exact:
+            return exact[:1]
+
+        # 2) Exact display_name match (case-insensitive)
+        exact_display = public_categories.filtered(
+            lambda c: self._normalize_category_text(c.display_name) == normalized_target
+        )
+        if exact_display:
+            return exact_display[:1]
+
+        # 3) Fuzzy match on name + display_name
+        best = self.env['product.public.category']
+        best_score = 0.0
+        for category in public_categories:
+            name_score = SequenceMatcher(
+                None,
+                normalized_target,
+                self._normalize_category_text(category.name),
+            ).ratio()
+            display_score = SequenceMatcher(
+                None,
+                normalized_target,
+                self._normalize_category_text(category.display_name),
+            ).ratio()
+            score = max(name_score, display_score)
+            if score > best_score:
+                best_score = score
+                best = category
+
+        if best and best_score >= 0.78:
+            return best
+
+        return self.env['product.public.category']
+
+    @api.model
+    def _get_or_create_public_category_for_icecat(self, icecat_category, public_categories):
+        """Resolve website category by best match, fallback to creating one."""
+        category = self._find_best_public_category(icecat_category, public_categories)
+        if category:
+            return category
+
+        # Fallback: create a clean top-level category with Icecat name
+        clean_name = (icecat_category or '').strip()
+        if not clean_name:
+            return self.env['product.public.category']
+
+        return self.env['product.public.category'].create({'name': clean_name})
+
+    def action_restore_website_categories(self):
+        """
+        Restore website categories for mappings and linked products.
+
+        Strategy:
+        - Process mappings without website category
+        - Resolve best matching product.public.category (exact/fuzzy)
+        - Create category if no match exists
+        - Reapply mapping to linked products
+        """
+        self.ensure_one()
+
+        mappings_to_fix = self.search([('odoo_category_id', '=', False)])
+        if not mappings_to_fix:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing to restore'),
+                    'message': _('All mappings already have a Website Category.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        public_categories = self.env['product.public.category'].search([])
+
+        restored_mappings = 0
+        created_categories = 0
+        updated_products = 0
+
+        for mapping in mappings_to_fix:
+            category = self._get_or_create_public_category_for_icecat(
+                mapping.icecat_category,
+                public_categories,
+            )
+            if not category:
+                continue
+
+            # refresh cache if new category was created
+            if category.id not in public_categories.ids:
+                created_categories += 1
+                public_categories |= category
+
+            mapping.write({'odoo_category_id': category.id})
+            restored_mappings += 1
+
+            products = self.env['product.template'].search([
+                ('icecat_category', '=', mapping.icecat_category)
+            ])
+            for product in products:
+                vals = mapping._prepare_product_mapping_vals(product)
+                if vals:
+                    product.write(vals)
+                    updated_products += 1
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Category restore completed'),
+                'message': _(
+                    'Restored %(mappings)s mappings, created %(created)s categories, updated %(products)s products.'
+                ) % {
+                    'mappings': restored_mappings,
+                    'created': created_categories,
+                    'products': updated_products,
                 },
                 'type': 'success',
                 'sticky': True,
