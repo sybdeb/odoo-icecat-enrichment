@@ -407,6 +407,20 @@ class IcecatCategoryMapping(models.Model):
 
         public_categories = self.env['product.public.category'].search([])
 
+        # Safety: if one mapped website category dominates, exclude it from
+        # auto-match candidates to avoid restoring back into the same mistake.
+        mapped_domain = [('odoo_category_id', '!=', False)]
+        total_mapped = self.search_count(mapped_domain)
+        if total_mapped:
+            grouped = self.read_group(mapped_domain, ['odoo_category_id'], ['odoo_category_id'], lazy=False)
+            grouped = [g for g in grouped if g.get('odoo_category_id')]
+            if grouped:
+                dominant = max(grouped, key=lambda g: g['odoo_category_id_count'])
+                dominant_category_id = dominant['odoo_category_id'][0]
+                dominant_count = dominant['odoo_category_id_count']
+                if dominant_count >= int(total_mapped * 0.5):
+                    public_categories = public_categories.filtered(lambda c: c.id != dominant_category_id)
+
         restored_mappings = 0
         created_categories = 0
         updated_products = 0
